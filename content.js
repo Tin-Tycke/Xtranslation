@@ -296,6 +296,20 @@
     return { context: snippets.slice(-3).join('\n---\n'), images };
   }
 
+  function normalizeComparableText(text) {
+    return String(text || '')
+      .replace(/\r\n/g, '\n')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function shouldFallbackAfterPaste(currentEditorText, expectedText) {
+    const cur = normalizeComparableText(currentEditorText);
+    const exp = normalizeComparableText(expectedText);
+    if (!exp) return false;
+    return cur !== exp;
+  }
+
   function renderErrorMessage(container, prefix, err) {
     container.innerHTML = '';
     const errDiv = document.createElement('div');
@@ -314,6 +328,8 @@
       getTweetAuthor,
       extractTweetContextPayload,
       extractReplyContextPayload,
+      normalizeComparableText,
+      shouldFallbackAfterPaste,
       renderErrorMessage,
       recordSelectedCandidate,
       clearLastSelection,
@@ -904,9 +920,10 @@
     selection.removeAllRanges();
     selection.addRange(range);
 
+    let dt = null;
     let pasted = false;
     try {
-      const dt = new DataTransfer();
+      dt = new DataTransfer();
       dt.setData('text/plain', newText);
       const pasteEvent = new ClipboardEvent('paste', {
         bubbles: true,
@@ -919,14 +936,42 @@
       pasted = false;
     }
 
+    // Wait for Draft.js / Lexical reconciliation before checking with normalized whitespace
+    // (avoiding destructive execCommand on multi-paragraph text that already pasted cleanly)
     setTimeout(() => {
-      const current = (textbox.innerText || '').trim();
-      if (!pasted || current !== newText.trim()) {
+      const current = textbox.innerText || '';
+      if (!pasted || shouldFallbackAfterPaste(current, newText)) {
         textbox.focus();
-        document.execCommand('selectAll', false, null);
-        document.execCommand('insertText', false, newText);
+        const sel = window.getSelection();
+        const rng = document.createRange();
+        rng.selectNodeContents(textbox);
+        sel.removeAllRanges();
+        sel.addRange(rng);
+
+        // Try native beforeinput first (Draft.js / Lexical friendly), fallback to execCommand only if still unchanged
+        let handled = false;
+        try {
+          if (dt && typeof InputEvent === 'function') {
+            const inputEv = new InputEvent('beforeinput', {
+              bubbles: true,
+              cancelable: true,
+              inputType: 'insertFromPaste',
+              data: newText,
+              dataTransfer: dt
+            });
+            textbox.dispatchEvent(inputEv);
+            handled = !shouldFallbackAfterPaste(textbox.innerText || '', newText);
+          }
+        } catch {
+          handled = false;
+        }
+
+        if (!handled && shouldFallbackAfterPaste(textbox.innerText || '', newText)) {
+          document.execCommand('selectAll', false, null);
+          document.execCommand('insertText', false, newText);
+        }
       }
-    }, 30);
+    }, 80);
   }
 
   function enhanceComposeBox(textbox) {
@@ -1324,14 +1369,20 @@
         const mainMeta = document.createElement('div');
         mainMeta.className = 'xtr-candidate-meta';
 
+        const fullText = draft.title ? `${draft.title}\n\n${draft.mainPost}` : draft.mainPost;
+        const charCount = fullText.length;
+
         const mainLabel = document.createElement('span');
         mainLabel.className = 'xtr-candidate-style';
-        mainLabel.textContent = draft.title ? `主贴 / 长文：${draft.title}` : '主贴成稿';
+        mainLabel.textContent = draft.title
+          ? `主贴 / 长文 (${charCount} 字符) ${draft.title}`
+          : `主贴成稿 (${charCount} 字符)`;
+        if (draft.postMode === 'news_post' && charCount > 280) {
+          mainLabel.style.color = '#f4212e';
+        }
 
         const mainActions = document.createElement('div');
         mainActions.className = 'xtr-candidate-actions';
-
-        const fullText = draft.title ? `${draft.title}\n\n${draft.mainPost}` : draft.mainPost;
 
         const copyMainBtn = document.createElement('button');
         copyMainBtn.type = 'button';

@@ -174,6 +174,7 @@ describe('lib/core.js', () => {
       assert.match(msgs[0].content, /No Throat-Clearing Openers/);
       assert.match(msgs[0].content, /first_reply/);
       assert.match(msgs[0].content, /NEVER write "I plan to\.\.\."/);
+      assert.match(msgs[0].content, /STRICTLY under 265 characters/);
       assert.match(msgs[1].content, /https:\/\/openai\.com\/pricing/);
     });
 

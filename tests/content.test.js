@@ -165,4 +165,17 @@ describe('content.js helpers & continuation state', () => {
       assert.equal(content.SESSION_STATE.lastSelection, null);
     });
   });
+
+  describe('Draft.js paste comparison (prevents double-insert backspace bug)', () => {
+    it('does NOT trigger fallback when Draft.js renders different blank-line newlines', () => {
+      const expected = 'Line one.\n\nLine two.\n\nLine three.';
+      const draftJsInnerText = 'Line one.\n\n\nLine two.\nLine three.\n';
+      assert.equal(content.shouldFallbackAfterPaste(draftJsInnerText, expected), false);
+    });
+
+    it('triggers fallback only when paste actually failed to insert text', () => {
+      assert.equal(content.shouldFallbackAfterPaste('', 'Line one.\n\nLine two.'), true);
+      assert.equal(content.shouldFallbackAfterPaste('Old draft', 'New English post'), true);
+    });
+  });
 });
