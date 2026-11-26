@@ -1,0 +1,361 @@
+/* X 地道双语助手 - Injected Styles */
+
+.xtr-tweet-container {
+  margin-top: 6px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.xtr-tweet-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.xtr-translate-btn {
+  appearance: none;
+  border: 1px solid rgba(29, 155, 240, 0.35);
+  background: rgba(29, 155, 240, 0.08);
+  color: rgb(29, 155, 240);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.xtr-translate-btn:hover:not(:disabled) {
+  background: rgba(29, 155, 240, 0.18);
+  border-color: rgba(29, 155, 240, 0.6);
+}
+
+.xtr-translate-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.xtr-result-box {
+  margin-top: 6px;
+  padding: 8px 12px;
+  border-left: 3px solid rgb(29, 155, 240);
+  background: rgba(29, 155, 240, 0.07);
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: inherit;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.xtr-trans-text {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.xtr-slang-notes {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(128, 128, 128, 0.3);
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: 0.85;
+}
+
+.xtr-slang-item + .xtr-slang-item {
+  margin-top: 3px;
+}
+
+.xtr-error-text {
+  color: #f4212e;
+  font-size: 13px;
+}
+
+/* Compose / Reply Bar */
+
+.xtr-compose-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 4px;
+  margin: 4px 0;
+  border-top: 1px solid rgba(128, 128, 128, 0.2);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.xtr-compose-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.xtr-tone-select {
+  background: rgba(128, 128, 128, 0.12);
+  color: inherit;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  border-radius: 9999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+}
+
+.xtr-tone-select option {
+  background: #15202b;
+  color: #ffffff;
+}
+
+.xtr-compose-btn {
+  appearance: none;
+  border: none;
+  background: rgb(29, 155, 240);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.xtr-compose-btn:hover:not(:disabled) {
+  background: rgb(26, 140, 216);
+}
+
+.xtr-compose-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.xtr-undo-btn {
+  appearance: none;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.xtr-undo-btn:hover {
+  background: rgba(128, 128, 128, 0.15);
+}
+
+.xtr-context-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: rgba(0, 186, 124, 0.14);
+  color: #00ba7c;
+  cursor: help;
+}
+
+.xtr-compose-status {
+  font-size: 12px;
+  color: rgb(29, 155, 240);
+}
+
+/* Floating Auto-Translate Pill */
+
+.xtr-floating-pill {
+  position: fixed;
+  right: 20px;
+  bottom: 74px;
+  z-index: 9999;
+  appearance: none;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  background: rgba(15, 20, 25, 0.85);
+  color: #ffffff;
+  backdrop-filter: blur(8px);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 9999px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.xtr-floating-pill.is-dragging {
+  cursor: grabbing;
+  opacity: 0.92;
+}
+
+.xtr-floating-pill.is-active {
+  background: rgb(29, 155, 240);
+  border-color: rgb(29, 155, 240);
+}
+
+/* Re-translate & Quick Reply & Candidate Cards */
+
+.xtr-retranslate-btn,
+.xtr-quick-reply-btn {
+  appearance: none;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  background: transparent;
+  color: inherit;
+  opacity: 0.8;
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.xtr-retranslate-btn:hover,
+.xtr-quick-reply-btn:hover {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.15);
+}
+
+.xtr-candidates-btn {
+  appearance: none;
+  border: 1px solid rgba(29, 155, 240, 0.45);
+  background: rgba(29, 155, 240, 0.1);
+  color: rgb(29, 155, 240);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.xtr-candidates-btn:hover:not(:disabled) {
+  background: rgba(29, 155, 240, 0.2);
+}
+
+.xtr-candidates-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.xtr-quick-reply-box {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(128, 128, 128, 0.28);
+  background: rgba(128, 128, 128, 0.06);
+}
+
+.xtr-qr-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.xtr-qr-input {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 9999px;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.xtr-qr-input:focus {
+  border-color: rgb(29, 155, 240);
+}
+
+.xtr-candidates-panel {
+  width: 100%;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.xtr-candidates-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.xtr-close-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.xtr-candidate-card {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(29, 155, 240, 0.25);
+  background: rgba(29, 155, 240, 0.06);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.xtr-candidate-card:hover {
+  border-color: rgba(29, 155, 240, 0.65);
+  background: rgba(29, 155, 240, 0.12);
+}
+
+.xtr-candidate-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.xtr-candidate-style {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgb(29, 155, 240);
+}
+
+.xtr-candidate-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.xtr-mini-btn {
+  appearance: none;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  background: transparent;
+  color: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  cursor: pointer;
+}
+
+.xtr-mini-btn.is-primary {
+  border-color: rgb(29, 155, 240);
+  background: rgb(29, 155, 240);
+  color: #ffffff;
+}
+
+.xtr-candidate-en {
+  font-size: 13px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.xtr-candidate-zh {
+  margin-top: 3px;
+  font-size: 12px;
+  opacity: 0.75;
+}
