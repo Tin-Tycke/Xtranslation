@@ -24,6 +24,7 @@ const els = {
   toggleKeyBtn: document.getElementById('toggleKeyBtn'),
   model: document.getElementById('model'),
   defaultTone: document.getElementById('defaultTone'),
+  defaultLength: document.getElementById('defaultLength'),
   glossary: document.getElementById('glossary'),
   autoTranslate: document.getElementById('autoTranslate'),
   showSlangNotes: document.getElementById('showSlangNotes'),
@@ -51,7 +52,8 @@ function loadSettings() {
       apiBaseUrl: 'https://api.deepseek.com/v1',
       apiKey: '',
       model: 'deepseek-chat',
-      defaultTone: 'casual',
+      defaultTone: 'mix',
+      defaultLength: 'auto',
       glossary: '',
       autoTranslate: false,
       showSlangNotes: true
@@ -61,7 +63,10 @@ function loadSettings() {
       els.apiBaseUrl.value = items.apiBaseUrl;
       els.apiKey.value = items.apiKey;
       els.model.value = items.model;
-      els.defaultTone.value = items.defaultTone;
+      els.defaultTone.value = items.defaultTone || 'mix';
+      if (!els.defaultTone.value) els.defaultTone.value = 'mix';
+      els.defaultLength.value = items.defaultLength || 'auto';
+      if (!els.defaultLength.value) els.defaultLength.value = 'auto';
       els.glossary.value = items.glossary || '';
       els.autoTranslate.checked = Boolean(items.autoTranslate);
       els.showSlangNotes.checked = Boolean(items.showSlangNotes);
@@ -77,6 +82,7 @@ function saveSettings(silent = false) {
       apiKey: els.apiKey.value.trim(),
       model: els.model.value.trim(),
       defaultTone: els.defaultTone.value,
+      defaultLength: els.defaultLength.value,
       glossary: els.glossary.value,
       autoTranslate: els.autoTranslate.checked,
       showSlangNotes: els.showSlangNotes.checked

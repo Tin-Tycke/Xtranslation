@@ -1,61 +1,90 @@
 // Content script for X (x.com / twitter.com)
 
-(() => {
-  if (window.__xTranslatorLoaded) return;
-  window.__xTranslatorLoaded = true;
+(function () {
+  const CORE =
+    (typeof globalThis !== 'undefined' && globalThis.XTR_CORE) ||
+    (typeof require === 'function' ? require('./lib/core.js') : null);
+
+  const {
+    STANCE_OPTIONS,
+    LENGTH_OPTIONS,
+    isMostlyChinese,
+    hasChinese,
+    normalizeStance,
+    normalizeLength
+  } = CORE;
 
   const SETTINGS = {
     autoTranslate: false,
     showSlangNotes: true,
-    defaultTone: 'casual'
+    defaultTone: 'mix',
+    defaultLength: 'auto'
   };
 
-  // Track original Chinese drafts per editor element for easy undo
-  const originalDrafts = new WeakMap();
+  const SESSION_STATE_KEY = 'xtr_session_state_v1';
+  const PILL_POS_KEY = 'xtr_pill_pos_v1';
 
-  // Concurrency-limited queue for auto-translation
+  const SESSION_STATE = {
+    lastStance: 'mix',
+    lastLength: 'auto',
+    lastSelection: null, // { en, zh_back, style, timestamp }
+    continueEnabled: false
+  };
+
+  const sessionSyncListeners = new Set();
+  const originalDrafts = new WeakMap();
   const translateQueue = [];
   let activeRequests = 0;
   const MAX_CONCURRENT = 2;
 
-  // Load initial settings
-  chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (res) => {
-    if (res?.ok && res.data) {
-      Object.assign(SETTINGS, res.data);
-      updateFloatingPill();
-      if (SETTINGS.autoTranslate) {
-        observeVisibleTweets();
+  function persistSessionState() {
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.set({ [SESSION_STATE_KEY]: { ...SESSION_STATE } });
+    }
+    for (const fn of sessionSyncListeners) {
+      try {
+        fn();
+      } catch {
+        // ignore detached listener errors
       }
     }
-  });
+  }
 
-  // Listen for settings changes from popup
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'sync') return;
-    if (changes.autoTranslate) {
-      SETTINGS.autoTranslate = Boolean(changes.autoTranslate.newValue);
-      updateFloatingPill();
-      if (SETTINGS.autoTranslate) {
-        observeVisibleTweets();
-      }
-    }
-    if (changes.showSlangNotes) {
-      SETTINGS.showSlangNotes = Boolean(changes.showSlangNotes.newValue);
-    }
-    if (changes.defaultTone) {
-      SETTINGS.defaultTone = changes.defaultTone.newValue || 'casual';
-    }
-  });
+  function recordSelectedCandidate(candidate) {
+    if (!candidate || !candidate.en) return;
+    SESSION_STATE.lastSelection = {
+      en: String(candidate.en).trim(),
+      zh_back: candidate.zh_back ? String(candidate.zh_back).trim() : '',
+      style: candidate.style || '',
+      timestamp: Date.now()
+    };
+    SESSION_STATE.continueEnabled = true;
+    persistSessionState();
+  }
 
-  // --- Utilities ---
+  function clearLastSelection() {
+    SESSION_STATE.lastSelection = null;
+    SESSION_STATE.continueEnabled = false;
+    persistSessionState();
+  }
+
+  function getActiveContinuation() {
+    if (SESSION_STATE.continueEnabled && SESSION_STATE.lastSelection?.en) {
+      return SESSION_STATE.lastSelection;
+    }
+    return null;
+  }
+
+  // --- DOM & Context Extraction Utilities ---
 
   function extractTextWithEmojis(el) {
     if (!el) return '';
     let out = '';
-    for (const node of el.childNodes) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        out += node.textContent;
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
+    const nodes = el.childNodes || [];
+    for (const node of nodes) {
+      if (node.nodeType === 3) {
+        out += node.textContent || '';
+      } else if (node.nodeType === 1) {
         if (node.tagName === 'IMG' && node.alt) {
           out += node.alt;
         } else if (node.tagName === 'BR') {
@@ -68,20 +97,47 @@
     return out.trim();
   }
 
-  function isMostlyChinese(text) {
-    if (!text) return true;
-    const stripped = text.replace(/https?:\/\/\S+|@\w+|#\w+|\s+/g, '');
-    if (!stripped) return true;
-    const cjkMatches = stripped.match(/[\u4e00-\u9fff]/g) || [];
-    return cjkMatches.length / stripped.length > 0.4;
+  function isTweetContentImageUrl(src) {
+    if (!src || typeof src !== 'string') return false;
+    if (src.includes('profile_images') || src.includes('/emoji/') || src.includes('abs-0.twimg.com')) {
+      return false;
+    }
+    return (
+      src.includes('pbs.twimg.com/media') ||
+      src.includes('pbs.twimg.com/card_img') ||
+      src.includes('pbs.twimg.com/ext_tw_video_thumb') ||
+      src.includes('pbs.twimg.com/amplify_video_thumb')
+    );
   }
 
-  function hasChinese(text) {
-    return /[\u4e00-\u9fff]/.test(text);
+  function extractImagesFromElement(el, limit = 4) {
+    if (!el || typeof el.querySelectorAll !== 'function') return [];
+    const seen = new Set();
+    const images = [];
+    const imgs = el.querySelectorAll('img');
+    for (const img of imgs) {
+      const src = img.getAttribute?.('src') || img.src || '';
+      if (!isTweetContentImageUrl(src)) continue;
+      if (seen.has(src)) continue;
+      seen.add(src);
+      const rawAlt = (img.getAttribute?.('alt') || img.alt || '').trim();
+      const alt = rawAlt && rawAlt.toLowerCase() !== 'image' ? rawAlt : '';
+      images.push({ url: src, alt });
+      if (images.length >= limit) break;
+    }
+    return images;
+  }
+
+  function extractCardText(el) {
+    if (!el || typeof el.querySelector !== 'function') return '';
+    const card = el.querySelector('[data-testid="card.wrapper"]');
+    if (!card) return '';
+    const txt = (card.innerText || card.textContent || '').replace(/\s+/g, ' ').trim();
+    return txt ? txt.slice(0, 260) : '';
   }
 
   function getTweetAuthor(article) {
-    if (!article) return '';
+    if (!article || typeof article.querySelectorAll !== 'function') return '';
     const userLinks = article.querySelectorAll('div[data-testid="User-Name"] a[href^="/"]');
     for (const a of userLinks) {
       const href = a.getAttribute('href') || '';
@@ -91,6 +147,187 @@
     }
     return '';
   }
+
+  function extractTweetContextPayload(tweetTextEl, article, pathname = '') {
+    const parts = [];
+    const seen = new Set([extractTextWithEmojis(tweetTextEl)]);
+    const images = article ? extractImagesFromElement(article, 4) : [];
+
+    // 1. Link card / preview inside the same article
+    const cardText = extractCardText(article);
+    if (cardText && !seen.has(cardText)) {
+      seen.add(cardText);
+      parts.push(`[附带链接/卡片]: ${cardText}`);
+    }
+
+    // 2. Quoted tweet inside the same article
+    if (article && typeof article.querySelectorAll === 'function') {
+      article.querySelectorAll('[data-testid="tweetText"]').forEach((otherEl) => {
+        if (otherEl === tweetTextEl) return;
+        const txt = extractTextWithEmojis(otherEl);
+        if (txt && !seen.has(txt)) {
+          seen.add(txt);
+          parts.push(`[引用的推文]: ${txt}`);
+        }
+      });
+    }
+
+    // 3. Up to 2 preceding tweets on a /status/ thread page
+    const currentPath = pathname || (typeof window !== 'undefined' ? window.location.pathname : '');
+    if (article && currentPath.includes('/status/') && typeof document !== 'undefined') {
+      const allTweets = Array.from(document.querySelectorAll('main article[data-testid="tweet"]'));
+      const idx = allTweets.indexOf(article);
+      if (idx > 0) {
+        const start = Math.max(0, idx - 2);
+        const threadSnippets = [];
+        for (let i = start; i < idx; i++) {
+          const prevArticle = allTweets[i];
+          const prevTextEl = prevArticle.querySelector('[data-testid="tweetText"]');
+          if (prevTextEl) {
+            const prevTxt = extractTextWithEmojis(prevTextEl);
+            if (prevTxt && !seen.has(prevTxt)) {
+              seen.add(prevTxt);
+              const prevAuthor = getTweetAuthor(prevArticle);
+              threadSnippets.push(prevAuthor ? `[上级推文 ${prevAuthor}]: ${prevTxt}` : `[上级推文]: ${prevTxt}`);
+            }
+          }
+        }
+        if (threadSnippets.length > 0) {
+          parts.unshift(...threadSnippets);
+        }
+      }
+    }
+
+    return { context: parts.join('\n'), images };
+  }
+
+  function extractReplyContextPayload(textbox, pathname = '') {
+    const seen = new Set();
+    const snippets = [];
+    const seenImg = new Set();
+    const images = [];
+
+    const pushSnippet = (author, txt) => {
+      const clean = (txt || '').trim();
+      if (!clean || seen.has(clean)) return;
+      seen.add(clean);
+      snippets.push(author ? `${author}: ${clean}` : clean);
+    };
+
+    const pushImages = (el) => {
+      for (const img of extractImagesFromElement(el, 4)) {
+        if (!seenImg.has(img.url) && images.length < 4) {
+          seenImg.add(img.url);
+          images.push(img);
+        }
+      }
+    };
+
+    // 1. Inside a Reply or Quote Tweet Modal (div[role="dialog"])
+    const dialog = textbox?.closest?.('div[role="dialog"]');
+    if (dialog) {
+      dialog.querySelectorAll('article[data-testid="tweet"]').forEach((article) => {
+        const textEl = article.querySelector('[data-testid="tweetText"]');
+        if (textEl) {
+          pushSnippet(getTweetAuthor(article), extractTextWithEmojis(textEl));
+        }
+        const card = extractCardText(article);
+        if (card) pushSnippet('[卡片]', card);
+        pushImages(article);
+      });
+
+      dialog.querySelectorAll('[data-testid="tweetText"]').forEach((textEl) => {
+        if (textbox.contains?.(textEl)) return;
+        const card = textEl.closest?.('div[role="link"]') || textEl.closest?.('article');
+        const authorEl = card?.querySelector?.('div[dir="ltr"] span');
+        const author = authorEl && authorEl.textContent?.startsWith('@') ? authorEl.textContent.trim() : '';
+        pushSnippet(author, extractTextWithEmojis(textEl));
+        if (card) pushImages(card);
+      });
+
+      if (snippets.length > 0 || images.length > 0) {
+        return { context: snippets.slice(-3).join('\n---\n'), images };
+      }
+    }
+
+    // 2. Inline reply on a tweet detail page (/status/...)
+    const currentPath = pathname || (typeof window !== 'undefined' ? window.location.pathname : '');
+    if (currentPath.includes('/status/') && typeof document !== 'undefined') {
+      const allTweets = Array.from(document.querySelectorAll('main article[data-testid="tweet"]'));
+      const preceding = [];
+      for (const article of allTweets) {
+        if (article.compareDocumentPosition(textbox) & 4 /* DOCUMENT_POSITION_FOLLOWING */) {
+          preceding.push(article);
+        }
+      }
+      const recent = preceding.slice(-3);
+      for (const article of recent) {
+        const textEl = article.querySelector('[data-testid="tweetText"]');
+        if (textEl) {
+          pushSnippet(getTweetAuthor(article), extractTextWithEmojis(textEl));
+        }
+        const card = extractCardText(article);
+        if (card) pushSnippet('[卡片]', card);
+      }
+      if (recent.length > 0) {
+        pushImages(recent[recent.length - 1]);
+      }
+      if (snippets.length > 0 || images.length > 0) {
+        return { context: snippets.join('\n---\n'), images };
+      }
+    }
+
+    // 3. Inline quote-tweet in home/profile compose area
+    const composeContainer =
+      textbox?.closest?.('div[data-testid="primaryColumn"]') ||
+      textbox?.parentElement?.parentElement?.parentElement;
+    if (composeContainer && typeof composeContainer.querySelector === 'function') {
+      const quotedCard = composeContainer.querySelector('div[role="link"]');
+      const quoted = quotedCard?.querySelector?.('[data-testid="tweetText"]');
+      if (quoted && !textbox.contains?.(quoted)) {
+        pushSnippet('', extractTextWithEmojis(quoted));
+        pushImages(quotedCard);
+      }
+    }
+
+    return { context: snippets.slice(-3).join('\n---\n'), images };
+  }
+
+  function renderErrorMessage(container, prefix, err) {
+    container.innerHTML = '';
+    const errDiv = document.createElement('div');
+    errDiv.className = 'xtr-error-text';
+    errDiv.textContent = `${prefix}: ${err?.message || String(err)}`;
+    container.appendChild(errDiv);
+  }
+
+  // Export testable helpers in Node test environment
+  if (typeof module === 'object' && module.exports) {
+    module.exports = {
+      extractTextWithEmojis,
+      isTweetContentImageUrl,
+      extractImagesFromElement,
+      extractCardText,
+      getTweetAuthor,
+      extractTweetContextPayload,
+      extractReplyContextPayload,
+      renderErrorMessage,
+      recordSelectedCandidate,
+      clearLastSelection,
+      getActiveContinuation,
+      SESSION_STATE
+    };
+  }
+
+  // Stop here when running in unit tests without full browser runtime
+  if (typeof window === 'undefined' || typeof document === 'undefined' || globalThis.__XTR_TEST_ENV__) {
+    return;
+  }
+
+  if (window.__xTranslatorLoaded) return;
+  window.__xTranslatorLoaded = true;
+
+  // --- Bootstrap Settings & Session State ---
 
   function sendMessageAsync(payload) {
     return new Promise((resolve, reject) => {
@@ -116,158 +353,152 @@
     });
   }
 
-  // --- Tweet Translation (EN -> ZH) ---
-
-  function enqueueTranslation(taskFn) {
-    translateQueue.push(taskFn);
-    processQueue();
-  }
-
-  function processQueue() {
-    while (activeRequests < MAX_CONCURRENT && translateQueue.length > 0) {
-      const task = translateQueue.shift();
-      activeRequests++;
-      Promise.resolve()
-        .then(task)
-        .finally(() => {
-          activeRequests--;
-          processQueue();
-        });
+  chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (res) => {
+    if (res?.ok && res.data) {
+      Object.assign(SETTINGS, res.data);
+      updateFloatingPill();
+      if (SETTINGS.autoTranslate) {
+        observeVisibleTweets();
+      }
     }
-  }
+  });
 
-  function extractTweetContext(tweetTextEl, article) {
-    const parts = [];
-    const seen = new Set([extractTextWithEmojis(tweetTextEl)]);
-
-    // 1. Quoted tweet inside the same article
-    if (article) {
-      article.querySelectorAll('[data-testid="tweetText"]').forEach((otherEl) => {
-        if (otherEl === tweetTextEl) return;
-        const txt = extractTextWithEmojis(otherEl);
-        if (txt && !seen.has(txt)) {
-          seen.add(txt);
-          parts.push(`[引用的推文]: ${txt}`);
-        }
-      });
-    }
-
-    // 2. Preceding tweet on a /status/ thread page
-    if (article && window.location.pathname.includes('/status/')) {
-      const allTweets = Array.from(document.querySelectorAll('main article[data-testid="tweet"]'));
-      const idx = allTweets.indexOf(article);
-      if (idx > 0) {
-        const prevArticle = allTweets[idx - 1];
-        const prevTextEl = prevArticle.querySelector('[data-testid="tweetText"]');
-        if (prevTextEl) {
-          const prevTxt = extractTextWithEmojis(prevTextEl);
-          if (prevTxt && !seen.has(prevTxt)) {
-            seen.add(prevTxt);
-            const prevAuthor = getTweetAuthor(prevArticle);
-            parts.unshift(prevAuthor ? `[上级推文 ${prevAuthor}]: ${prevTxt}` : `[上级推文]: ${prevTxt}`);
-          }
+  chrome.storage.local.get(SESSION_STATE_KEY, (res) => {
+    const saved = res?.[SESSION_STATE_KEY];
+    if (saved) {
+      if (saved.lastStance) SESSION_STATE.lastStance = normalizeStance(saved.lastStance);
+      if (saved.lastLength) SESSION_STATE.lastLength = normalizeLength(saved.lastLength);
+      if (saved.lastSelection && saved.lastSelection.en) {
+        SESSION_STATE.lastSelection = saved.lastSelection;
+        SESSION_STATE.continueEnabled = Boolean(saved.continueEnabled);
+      }
+      for (const fn of sessionSyncListeners) {
+        try {
+          fn();
+        } catch {
+          // ignore
         }
       }
     }
+  });
 
-    return parts.join('\n');
-  }
-
-  async function performTweetTranslation(tweetTextEl, btn, resultBox, force = false) {
-    if (tweetTextEl.dataset.xtrState === 'loading') return;
-    if (!force && tweetTextEl.dataset.xtrState === 'done') {
-      // Toggle visibility
-      const isHidden = resultBox.style.display === 'none';
-      resultBox.style.display = isHidden ? 'block' : 'none';
-      btn.textContent = isHidden ? '收起译文' : '查看译文';
-      return;
-    }
-
-    const rawText = extractTextWithEmojis(tweetTextEl);
-    if (!rawText) return;
-
-    const article = tweetTextEl.closest('article[data-testid="tweet"]');
-    const author = getTweetAuthor(article);
-    const context = extractTweetContext(tweetTextEl, article);
-
-    tweetTextEl.dataset.xtrState = 'loading';
-    tweetTextEl.dataset.xtrRawText = rawText;
-    btn.disabled = true;
-    btn.textContent = '翻译中...';
-    resultBox.style.display = 'none';
-
-    try {
-      const data = await sendMessageAsync({
-        type: 'TRANSLATE_TWEET',
-        text: rawText,
-        author,
-        context,
-        force
-      });
-
-      resultBox.innerHTML = '';
-
-      const transP = document.createElement('div');
-      transP.className = 'xtr-trans-text';
-      transP.textContent = data.translation;
-      resultBox.appendChild(transP);
-
-      if (SETTINGS.showSlangNotes && data.slangNotes && data.slangNotes.length > 0) {
-        const notesDiv = document.createElement('div');
-        notesDiv.className = 'xtr-slang-notes';
-        for (const note of data.slangNotes) {
-          const item = document.createElement('div');
-          item.className = 'xtr-slang-item';
-          item.textContent = `💡 ${note}`;
-          notesDiv.appendChild(item);
-        }
-        resultBox.appendChild(notesDiv);
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'sync') return;
+    if (changes.autoTranslate) {
+      SETTINGS.autoTranslate = Boolean(changes.autoTranslate.newValue);
+      updateFloatingPill();
+      if (SETTINGS.autoTranslate) {
+        observeVisibleTweets();
       }
-
-      resultBox.style.display = 'block';
-      tweetTextEl.dataset.xtrState = 'done';
-      btn.textContent = '收起译文';
-      const reBtn = tweetTextEl.nextElementSibling?.querySelector('.xtr-retranslate-btn');
-      if (reBtn) reBtn.style.display = 'inline-flex';
-    } catch (err) {
-      tweetTextEl.dataset.xtrState = 'error';
-      resultBox.innerHTML = '';
-      const errDiv = document.createElement('div');
-      errDiv.className = 'xtr-error-text';
-      errDiv.textContent = `翻译失败: ${err.message}`;
-      resultBox.appendChild(errDiv);
-      resultBox.style.display = 'block';
-      btn.textContent = '重试翻译';
-    } finally {
-      btn.disabled = false;
     }
-  }
+    if (changes.showSlangNotes) {
+      SETTINGS.showSlangNotes = Boolean(changes.showSlangNotes.newValue);
+    }
+    if (changes.defaultTone) {
+      SETTINGS.defaultTone = normalizeStance(changes.defaultTone.newValue);
+    }
+    if (changes.defaultLength) {
+      SETTINGS.defaultLength = normalizeLength(changes.defaultLength.newValue);
+    }
+  });
 
-  function buildToneSelect(defaultValue) {
+  // --- Shared UI Builders ---
+
+  function buildStanceSelect() {
     const select = document.createElement('select');
     select.className = 'xtr-tone-select';
-    select.title = '选择英文语气';
-    [
-      { value: 'casual', label: '日常美语' },
-      { value: 'witty', label: '幽默玩梗' },
-      { value: 'friendly', label: '友好热情' },
-      { value: 'professional', label: '专业得体' }
-    ].forEach((t) => {
+    select.title = '选择回复立场/风格（自动记住上次选择）';
+    STANCE_OPTIONS.forEach((optItem) => {
       const opt = document.createElement('option');
-      opt.value = t.value;
-      opt.textContent = t.label;
-      if (t.value === defaultValue) opt.selected = true;
+      opt.value = optItem.value;
+      opt.textContent = optItem.label;
+      if (optItem.value === SESSION_STATE.lastStance) opt.selected = true;
       select.appendChild(opt);
+    });
+    select.addEventListener('change', () => {
+      SESSION_STATE.lastStance = normalizeStance(select.value);
+      persistSessionState();
     });
     return select;
   }
 
-  function renderCandidateCards(panel, candidates, { onUse, onClose }) {
+  function buildLengthSelect() {
+    const select = document.createElement('select');
+    select.className = 'xtr-length-select';
+    select.title = '选择回复篇幅（自动记住上次选择）';
+    LENGTH_OPTIONS.forEach((optItem) => {
+      const opt = document.createElement('option');
+      opt.value = optItem.value;
+      opt.textContent = optItem.label;
+      if (optItem.value === SESSION_STATE.lastLength) opt.selected = true;
+      select.appendChild(opt);
+    });
+    select.addEventListener('change', () => {
+      SESSION_STATE.lastLength = normalizeLength(select.value);
+      persistSessionState();
+    });
+    return select;
+  }
+
+  function buildContinueChip() {
+    const chip = document.createElement('span');
+    chip.className = 'xtr-continue-chip';
+
+    const label = document.createElement('span');
+    label.textContent = '🔗 延续上条';
+
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'xtr-continue-clear';
+    clearBtn.textContent = '×';
+    clearBtn.title = '清除上次候选记忆';
+    clearBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      clearLastSelection();
+    });
+
+    chip.appendChild(label);
+    chip.appendChild(clearBtn);
+
+    chip.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!SESSION_STATE.lastSelection) return;
+      SESSION_STATE.continueEnabled = !SESSION_STATE.continueEnabled;
+      persistSessionState();
+    });
+
+    const sync = () => {
+      const sel = SESSION_STATE.lastSelection;
+      if (!sel || !sel.en) {
+        chip.style.display = 'none';
+        return;
+      }
+      chip.style.display = 'inline-flex';
+      chip.classList.toggle('is-active', Boolean(SESSION_STATE.continueEnabled));
+      const preview = sel.en.length > 70 ? sel.en.slice(0, 70) + '…' : sel.en;
+      chip.title = SESSION_STATE.continueEnabled
+        ? `已开启延续上条（点击关闭）：\n「${preview}」`
+        : `点击开启延续上次选中的句子：\n「${preview}」`;
+    };
+
+    sync();
+    return { chip, sync };
+  }
+
+  function renderCandidateCards(panel, payload, { onUse, onClose }) {
     panel.innerHTML = '';
+    const candidates = Array.isArray(payload) ? payload : payload?.candidates || [];
+    const postTakeaway = !Array.isArray(payload) ? payload?.postTakeaway : '';
+    const visionFallback = !Array.isArray(payload) ? Boolean(payload?.visionFallback) : false;
+
     const header = document.createElement('div');
     header.className = 'xtr-candidates-header';
     const title = document.createElement('span');
-    title.textContent = '选择地道美语表达：';
+    title.textContent = visionFallback
+      ? '选择回复（当前模型不支持识图，已按文本分析）：'
+      : '选择地道美语表达（选中后可延续）：';
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
     closeBtn.className = 'xtr-close-btn';
@@ -276,6 +507,13 @@
     header.appendChild(title);
     header.appendChild(closeBtn);
     panel.appendChild(header);
+
+    if (postTakeaway) {
+      const takeawayDiv = document.createElement('div');
+      takeawayDiv.className = 'xtr-takeaway-box';
+      takeawayDiv.textContent = `🎯 主贴意图：${postTakeaway}`;
+      panel.appendChild(takeawayDiv);
+    }
 
     candidates.forEach((c) => {
       const card = document.createElement('div');
@@ -296,6 +534,7 @@
       copyBtn.textContent = '复制';
       copyBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        recordSelectedCandidate(c);
         navigator.clipboard?.writeText(c.en).then(() => {
           copyBtn.textContent = '已复制';
           setTimeout(() => (copyBtn.textContent = '复制'), 1500);
@@ -308,6 +547,7 @@
       useBtn.textContent = '填入';
       useBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        recordSelectedCandidate(c);
         onUse(c.en);
       });
 
@@ -330,9 +570,120 @@
         card.appendChild(zhBack);
       }
 
-      card.addEventListener('click', () => onUse(c.en));
+      card.addEventListener('click', () => {
+        recordSelectedCandidate(c);
+        onUse(c.en);
+      });
       panel.appendChild(card);
     });
+  }
+
+  // --- Tweet Translation (EN -> ZH + Takeaway + Slang) ---
+
+  function enqueueTranslation(taskFn) {
+    translateQueue.push(taskFn);
+    processQueue();
+  }
+
+  function processQueue() {
+    while (activeRequests < MAX_CONCURRENT && translateQueue.length > 0) {
+      const task = translateQueue.shift();
+      activeRequests++;
+      Promise.resolve()
+        .then(task)
+        .finally(() => {
+          activeRequests--;
+          processQueue();
+        });
+    }
+  }
+
+  async function performTweetTranslation(tweetTextEl, btn, resultBox, force = false) {
+    if (tweetTextEl.dataset.xtrState === 'loading') return;
+    if (!force && tweetTextEl.dataset.xtrState === 'done') {
+      const isHidden = resultBox.style.display === 'none';
+      resultBox.style.display = isHidden ? 'block' : 'none';
+      btn.textContent = isHidden ? '收起' : '译';
+      return;
+    }
+
+    const rawText = extractTextWithEmojis(tweetTextEl);
+    if (!rawText) return;
+
+    const article = tweetTextEl.closest('article[data-testid="tweet"]');
+    const author = getTweetAuthor(article);
+    const { context, images } = extractTweetContextPayload(tweetTextEl, article);
+
+    tweetTextEl.dataset.xtrState = 'loading';
+    tweetTextEl.dataset.xtrRawText = rawText;
+    btn.disabled = true;
+    btn.textContent = '译中...';
+    resultBox.style.display = 'none';
+
+    try {
+      const data = await sendMessageAsync({
+        type: 'TRANSLATE_TWEET',
+        text: rawText,
+        author,
+        context,
+        images,
+        force
+      });
+
+      resultBox.innerHTML = '';
+
+      const headerRow = document.createElement('div');
+      headerRow.className = 'xtr-result-header';
+
+      const transP = document.createElement('div');
+      transP.className = 'xtr-trans-text';
+      transP.textContent = data.translation;
+
+      const reBtn = document.createElement('button');
+      reBtn.type = 'button';
+      reBtn.className = 'xtr-retranslate-btn';
+      reBtn.textContent = '↻';
+      reBtn.title = '重新翻译';
+      reBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        performTweetTranslation(tweetTextEl, btn, resultBox, true);
+      });
+
+      headerRow.appendChild(transP);
+      headerRow.appendChild(reBtn);
+      resultBox.appendChild(headerRow);
+
+      if (data.takeaway) {
+        const takeawayDiv = document.createElement('div');
+        takeawayDiv.className = 'xtr-takeaway-box';
+        takeawayDiv.textContent = `🎯 核心意图：${data.takeaway}`;
+        resultBox.appendChild(takeawayDiv);
+      }
+
+      if (SETTINGS.showSlangNotes && data.slangNotes && data.slangNotes.length > 0) {
+        const notesDiv = document.createElement('div');
+        notesDiv.className = 'xtr-slang-notes';
+        for (const note of data.slangNotes) {
+          const item = document.createElement('div');
+          item.className = 'xtr-slang-item';
+          item.textContent = `💡 ${note}`;
+          notesDiv.appendChild(item);
+        }
+        resultBox.appendChild(notesDiv);
+      }
+
+      resultBox.style.display = 'block';
+      tweetTextEl.dataset.xtrState = 'done';
+      btn.textContent = '收起';
+    } catch (err) {
+      tweetTextEl.dataset.xtrState = 'error';
+      renderErrorMessage(resultBox, '翻译失败', err);
+      resultBox.style.display = 'block';
+      btn.textContent = '重试';
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   function openReplyAndFill(article, englishText) {
@@ -369,7 +720,6 @@
 
     const container = document.createElement('div');
     container.className = 'xtr-tweet-container';
-    // Prevent clicking the translation UI from opening the tweet detail page
     container.addEventListener('click', (e) => e.stopPropagation());
 
     const controls = document.createElement('div');
@@ -378,19 +728,14 @@
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'xtr-translate-btn';
-    btn.textContent = '译为中文';
-
-    const reBtn = document.createElement('button');
-    reBtn.type = 'button';
-    reBtn.className = 'xtr-retranslate-btn';
-    reBtn.textContent = '↻';
-    reBtn.title = '重新翻译';
-    reBtn.style.display = 'none';
+    btn.textContent = '译';
+    btn.title = '翻译为地道中文并提炼主贴意图';
 
     const quickReplyBtn = document.createElement('button');
     quickReplyBtn.type = 'button';
     quickReplyBtn.className = 'xtr-quick-reply-btn';
-    quickReplyBtn.textContent = '💬 帮我回';
+    quickReplyBtn.textContent = '回';
+    quickReplyBtn.title = '结合主贴图文生成多角度英文回复';
 
     const resultBox = document.createElement('div');
     resultBox.className = 'xtr-result-box';
@@ -405,12 +750,6 @@
       e.stopPropagation();
       const isRetry = tweetTextEl.dataset.xtrState === 'error';
       performTweetTranslation(tweetTextEl, btn, resultBox, isRetry);
-    });
-
-    reBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      performTweetTranslation(tweetTextEl, btn, resultBox, true);
     });
 
     quickReplyBtn.addEventListener('click', (e) => {
@@ -429,55 +768,61 @@
         const input = document.createElement('input');
         input.type = 'text';
         input.className = 'xtr-qr-input';
-        input.placeholder = '可选：输入回复想法（留空则直接根据推文自动生成3条）';
+        input.placeholder = '输入回复想法（留空则直接根据主贴图文生成）';
 
-        const toneSel = buildToneSelect(SETTINGS.defaultTone);
+        const stanceSel = buildStanceSelect();
+        const lengthSel = buildLengthSelect();
+        const { chip: continueChip, sync: syncContinue } = buildContinueChip();
+
         const genBtn = document.createElement('button');
         genBtn.type = 'button';
         genBtn.className = 'xtr-compose-btn';
-        genBtn.textContent = '⚡ 生成3条回复';
+        genBtn.textContent = '⚡ 生成';
 
         const candPanel = document.createElement('div');
         candPanel.className = 'xtr-candidates-panel';
         candPanel.style.display = 'none';
+
+        sessionSyncListeners.add(() => {
+          stanceSel.value = SESSION_STATE.lastStance;
+          lengthSel.value = SESSION_STATE.lastLength;
+          syncContinue();
+        });
 
         const runGen = async () => {
           const idea = input.value.trim();
           const article = tweetTextEl.closest('article[data-testid="tweet"]');
           const author = getTweetAuthor(article);
           const tweetContent = extractTextWithEmojis(tweetTextEl);
-          const extraCtx = extractTweetContext(tweetTextEl, article);
+          const { context: extraCtx, images } = extractTweetContextPayload(tweetTextEl, article);
           const mainLine = author ? `${author}: ${tweetContent}` : tweetContent;
-          const context = extraCtx ? `${extraCtx}\n---\n[要回复的推文]: ${mainLine}` : mainLine;
+          const context = extraCtx ? `${extraCtx}\n---\n[要回复的主贴]: ${mainLine}` : mainLine;
+          const continuation = getActiveContinuation();
 
           genBtn.disabled = true;
           genBtn.textContent = '生成中...';
           try {
-            const candidates = await sendMessageAsync(
-              idea
-                ? {
-                    type: 'TRANSLATE_COMPOSE_CANDIDATES',
-                    text: idea,
-                    context,
-                    tone: toneSel.value
-                  }
-                : {
-                    type: 'GENERATE_AUTO_REPLIES',
-                    context,
-                    tone: toneSel.value
-                  }
-            );
-            renderCandidateCards(candPanel, candidates, {
+            const payload = await sendMessageAsync({
+              type: idea ? 'TRANSLATE_COMPOSE_CANDIDATES' : 'GENERATE_AUTO_REPLIES',
+              text: idea,
+              idea,
+              context,
+              images,
+              stance: stanceSel.value,
+              length: lengthSel.value,
+              continuation
+            });
+            renderCandidateCards(candPanel, payload, {
               onUse: (en) => openReplyAndFill(article, en),
               onClose: () => (candPanel.style.display = 'none')
             });
             candPanel.style.display = 'block';
           } catch (err) {
-            candPanel.innerHTML = `<div class="xtr-error-text">生成失败: ${err.message}</div>`;
+            renderErrorMessage(candPanel, '生成失败', err);
             candPanel.style.display = 'block';
           } finally {
             genBtn.disabled = false;
-            genBtn.textContent = '⚡ 生成3条回复';
+            genBtn.textContent = '⚡ 生成';
           }
         };
 
@@ -490,8 +835,10 @@
         });
 
         row.appendChild(input);
-        row.appendChild(toneSel);
+        row.appendChild(stanceSel);
+        row.appendChild(lengthSel);
         row.appendChild(genBtn);
+        row.appendChild(continueChip);
         quickReplyBox.appendChild(row);
         quickReplyBox.appendChild(candPanel);
       }
@@ -500,7 +847,6 @@
     });
 
     controls.appendChild(btn);
-    controls.appendChild(reBtn);
     controls.appendChild(quickReplyBtn);
     container.appendChild(controls);
     container.appendChild(resultBox);
@@ -543,69 +889,7 @@
     });
   }
 
-  // --- Compose / Reply Translation (ZH -> Authentic American English) ---
-
-  function extractReplyContext(textbox) {
-    const seen = new Set();
-    const snippets = [];
-    const pushSnippet = (author, txt) => {
-      const clean = (txt || '').trim();
-      if (!clean || seen.has(clean)) return;
-      seen.add(clean);
-      snippets.push(author ? `${author}: ${clean}` : clean);
-    };
-
-    // 1. Inside a Reply or Quote Tweet Modal (div[role="dialog"])
-    const dialog = textbox.closest('div[role="dialog"]');
-    if (dialog) {
-      dialog.querySelectorAll('article[data-testid="tweet"]').forEach((article) => {
-        const textEl = article.querySelector('[data-testid="tweetText"]');
-        if (textEl) {
-          pushSnippet(getTweetAuthor(article), extractTextWithEmojis(textEl));
-        }
-      });
-
-      // Quote tweet card inside compose dialog (often rendered as div[role="link"] or nested card without article)
-      dialog.querySelectorAll('[data-testid="tweetText"]').forEach((textEl) => {
-        if (textbox.contains(textEl)) return;
-        const card = textEl.closest('div[role="link"]') || textEl.closest('article');
-        const authorEl = card?.querySelector('div[dir="ltr"] span');
-        const author = authorEl && authorEl.textContent?.startsWith('@') ? authorEl.textContent.trim() : '';
-        pushSnippet(author, extractTextWithEmojis(textEl));
-      });
-
-      if (snippets.length > 0) {
-        return snippets.slice(-2).join('\n---\n');
-      }
-    }
-
-    // 2. Inline reply on a tweet detail page (/status/...)
-    if (window.location.pathname.includes('/status/')) {
-      const allTweets = Array.from(document.querySelectorAll('main article[data-testid="tweet"]'));
-      for (const article of allTweets) {
-        if (article.compareDocumentPosition(textbox) & Node.DOCUMENT_POSITION_FOLLOWING) {
-          const textEl = article.querySelector('[data-testid="tweetText"]');
-          if (textEl) {
-            pushSnippet(getTweetAuthor(article), extractTextWithEmojis(textEl));
-          }
-        }
-      }
-      if (snippets.length > 0) {
-        return snippets.slice(-2).join('\n---\n');
-      }
-    }
-
-    // 3. Inline quote-tweet in home/profile compose area
-    const composeContainer = textbox.closest('div[data-testid="primaryColumn"]') || textbox.parentElement?.parentElement?.parentElement;
-    if (composeContainer) {
-      const quoted = composeContainer.querySelector('div[role="link"] [data-testid="tweetText"]');
-      if (quoted && !textbox.contains(quoted)) {
-        pushSnippet('', extractTextWithEmojis(quoted));
-      }
-    }
-
-    return snippets.slice(-2).join('\n---\n');
-  }
+  // --- Streamlined Compose / Reply Bar ---
 
   function replaceEditorText(textbox, newText) {
     textbox.focus();
@@ -616,7 +900,6 @@
     selection.removeAllRanges();
     selection.addRange(range);
 
-    // Primary method: synthetic paste event (works reliably with Draft.js / Lexical on X)
     let pasted = false;
     try {
       const dt = new DataTransfer();
@@ -632,7 +915,6 @@
       pasted = false;
     }
 
-    // Verify if text actually changed; if not, fallback to execCommand
     setTimeout(() => {
       const current = (textbox.innerText || '').trim();
       if (!pasted || current !== newText.trim()) {
@@ -645,7 +927,6 @@
 
   function enhanceComposeBox(textbox) {
     if (textbox.dataset.xtrComposeEnhanced === '1') return;
-    // Find the outer compose wrapper that holds the toolbar
     const root =
       textbox.closest('div[data-testid="tweetTextarea_0_label"]')?.parentElement?.parentElement ||
       textbox.closest('div[role="dialog"]') ||
@@ -654,7 +935,6 @@
 
     if (!root) return;
 
-    // Avoid duplicating bars for the same compose area
     const toolbar =
       textbox.closest('div[role="dialog"]')?.querySelector('[data-testid="toolBar"]') ||
       textbox.closest('main')?.querySelector('[data-testid="toolBar"]') ||
@@ -672,45 +952,30 @@
     const leftGroup = document.createElement('div');
     leftGroup.className = 'xtr-compose-left';
 
-    const toneSelect = buildToneSelect(SETTINGS.defaultTone);
+    const stanceSelect = buildStanceSelect();
+    const lengthSelect = buildLengthSelect();
 
-    const translateBtn = document.createElement('button');
-    translateBtn.type = 'button';
-    translateBtn.className = 'xtr-compose-btn';
-    translateBtn.textContent = '✨ 译为地道美语';
+    const mainBtn = document.createElement('button');
+    mainBtn.type = 'button';
+    mainBtn.className = 'xtr-compose-btn';
+    mainBtn.textContent = '⚡ 生成回复';
 
-    const candidatesBtn = document.createElement('button');
-    candidatesBtn.type = 'button';
-    candidatesBtn.className = 'xtr-candidates-btn';
-    candidatesBtn.textContent = '🎯 3个候选';
+    const directBtn = document.createElement('button');
+    directBtn.type = 'button';
+    directBtn.className = 'xtr-direct-btn';
+    directBtn.textContent = '直译';
+    directBtn.title = '一键将中文直译替换为地道美语 (快捷键 Alt + T)';
 
-    const autoReplyBtn = document.createElement('button');
-    autoReplyBtn.type = 'button';
-    autoReplyBtn.className = 'xtr-candidates-btn';
-    autoReplyBtn.textContent = '💡 帮我想回复';
+    const { chip: continueChip, sync: syncContinue } = buildContinueChip();
 
     const undoBtn = document.createElement('button');
     undoBtn.type = 'button';
     undoBtn.className = 'xtr-undo-btn';
-    undoBtn.textContent = '↩ 恢复中文';
+    undoBtn.textContent = '↩ 恢复';
     undoBtn.style.display = 'none';
 
     const contextBadge = document.createElement('span');
     contextBadge.className = 'xtr-context-badge';
-
-    const refreshContextBadge = () => {
-      const ctx = extractReplyContext(textbox);
-      if (ctx) {
-        contextBadge.textContent = '🔗 已关联英文语境';
-        contextBadge.title = `将结合以下英文语境进行翻译：\n${ctx.slice(0, 300)}`;
-        contextBadge.style.display = 'inline-flex';
-        autoReplyBtn.style.display = 'inline-flex';
-      } else {
-        contextBadge.style.display = 'none';
-        autoReplyBtn.style.display = 'none';
-      }
-    };
-    refreshContextBadge();
 
     const statusSpan = document.createElement('span');
     statusSpan.className = 'xtr-compose-status';
@@ -718,6 +983,39 @@
     const candidatesPanel = document.createElement('div');
     candidatesPanel.className = 'xtr-candidates-panel';
     candidatesPanel.style.display = 'none';
+
+    const refreshDynamicUI = () => {
+      const { context, images } = extractReplyContextPayload(textbox);
+      const currentText = (textbox.innerText || '').trim();
+      const hasDraft = Boolean(currentText && hasChinese(currentText));
+
+      if (!mainBtn.disabled) {
+        mainBtn.textContent = hasDraft ? '✨ 生成3选' : '⚡ 生成回复';
+      }
+      directBtn.style.display = hasDraft || originalDrafts.has(textbox) ? 'inline-flex' : 'none';
+
+      if (images.length > 0) {
+        contextBadge.textContent = `🖼️+${images.length}图`;
+        contextBadge.title = `已关联主贴图文语境（含 ${images.length} 张图）：\n${(context || '').slice(0, 240)}`;
+        contextBadge.style.display = 'inline-flex';
+      } else if (context) {
+        contextBadge.textContent = '🔗 语境';
+        contextBadge.title = `已关联主贴语境：\n${context.slice(0, 260)}`;
+        contextBadge.style.display = 'inline-flex';
+      } else {
+        contextBadge.style.display = 'none';
+      }
+    };
+
+    refreshDynamicUI();
+    textbox.addEventListener('input', refreshDynamicUI);
+    textbox.addEventListener('focus', refreshDynamicUI);
+
+    sessionSyncListeners.add(() => {
+      stanceSelect.value = SESSION_STATE.lastStance;
+      lengthSelect.value = SESSION_STATE.lastLength;
+      syncContinue();
+    });
 
     function getSourceChinese() {
       const currentText = (textbox.innerText || '').trim();
@@ -729,19 +1027,19 @@
       return currentText;
     }
 
-    async function handleComposeTranslate() {
+    async function handleDirectTranslate() {
       const sourceChinese = getSourceChinese();
       if (!sourceChinese) {
-        statusSpan.textContent = '请先输入中文内容';
+        statusSpan.textContent = '请先输入中文';
         setTimeout(() => (statusSpan.textContent = ''), 2000);
         return;
       }
 
-      const context = extractReplyContext(textbox);
-      refreshContextBadge();
+      const { context, images } = extractReplyContextPayload(textbox);
+      refreshDynamicUI();
 
-      translateBtn.disabled = true;
-      translateBtn.textContent = '润色翻译中...';
+      directBtn.disabled = true;
+      directBtn.textContent = '译中...';
       statusSpan.textContent = '';
 
       try {
@@ -749,46 +1047,60 @@
           type: 'TRANSLATE_COMPOSE',
           text: sourceChinese,
           context,
-          tone: toneSelect.value
+          images,
+          stance: stanceSelect.value,
+          length: lengthSelect.value,
+          continuation: getActiveContinuation()
         });
 
         replaceEditorText(textbox, english);
+        recordSelectedCandidate({ en: english, zh_back: sourceChinese, style: '直译' });
         undoBtn.style.display = 'inline-flex';
         statusSpan.textContent = '✓ 已替换';
-        setTimeout(() => (statusSpan.textContent = ''), 2500);
+        setTimeout(() => (statusSpan.textContent = ''), 2200);
       } catch (err) {
         statusSpan.textContent = `⚠ ${err.message}`;
       } finally {
-        translateBtn.disabled = false;
-        translateBtn.textContent = '✨ 译为地道美语';
+        directBtn.disabled = false;
+        directBtn.textContent = '直译';
+        refreshDynamicUI();
       }
     }
 
-    async function handleAutoReplyIdeas() {
-      const context = extractReplyContext(textbox);
-      refreshContextBadge();
-      if (!context) {
-        statusSpan.textContent = '当前不是回复/引用场景，请先输入中文想法';
-        setTimeout(() => (statusSpan.textContent = ''), 2500);
+    async function handleSmartGenerate() {
+      const currentText = (textbox.innerText || '').trim();
+      const hasDraft = Boolean(currentText && hasChinese(currentText));
+      const sourceChinese = hasDraft ? getSourceChinese() : '';
+      const { context, images } = extractReplyContextPayload(textbox);
+      const continuation = getActiveContinuation();
+
+      if (!sourceChinese && !context && images.length === 0 && !continuation) {
+        statusSpan.textContent = '请先输入中文想法或打开回复框';
+        setTimeout(() => (statusSpan.textContent = ''), 2200);
         return;
       }
 
-      const currentIdea = (textbox.innerText || '').trim();
-      autoReplyBtn.disabled = true;
-      autoReplyBtn.textContent = '构思回复中...';
+      refreshDynamicUI();
+      mainBtn.disabled = true;
+      mainBtn.textContent = '生成中...';
       statusSpan.textContent = '';
 
       try {
-        const candidates = await sendMessageAsync({
-          type: 'GENERATE_AUTO_REPLIES',
+        const payload = await sendMessageAsync({
+          type: sourceChinese ? 'TRANSLATE_COMPOSE_CANDIDATES' : 'GENERATE_AUTO_REPLIES',
+          text: sourceChinese,
+          idea: sourceChinese,
           context,
-          tone: toneSelect.value,
-          idea: hasChinese(currentIdea) ? currentIdea : ''
+          images,
+          stance: stanceSelect.value,
+          length: lengthSelect.value,
+          continuation
         });
-        renderCandidateCards(candidatesPanel, candidates, {
+
+        renderCandidateCards(candidatesPanel, payload, {
           onUse: (en) => {
-            if (currentIdea && hasChinese(currentIdea)) {
-              originalDrafts.set(textbox, currentIdea);
+            if (sourceChinese) {
+              originalDrafts.set(textbox, sourceChinese);
               undoBtn.style.display = 'inline-flex';
             }
             replaceEditorText(textbox, en);
@@ -803,72 +1115,21 @@
       } catch (err) {
         statusSpan.textContent = `⚠ ${err.message}`;
       } finally {
-        autoReplyBtn.disabled = false;
-        autoReplyBtn.textContent = '💡 帮我想回复';
+        mainBtn.disabled = false;
+        refreshDynamicUI();
       }
     }
 
-    async function handleComposeCandidates() {
-      const sourceChinese = getSourceChinese();
-      const context = extractReplyContext(textbox);
-      if (!sourceChinese) {
-        if (context) {
-          return handleAutoReplyIdeas();
-        }
-        statusSpan.textContent = '请先输入中文内容';
-        setTimeout(() => (statusSpan.textContent = ''), 2000);
-        return;
-      }
-
-      refreshContextBadge();
-
-      candidatesBtn.disabled = true;
-      candidatesBtn.textContent = '生成候选中...';
-      statusSpan.textContent = '';
-
-      try {
-        const candidates = await sendMessageAsync({
-          type: 'TRANSLATE_COMPOSE_CANDIDATES',
-          text: sourceChinese,
-          context,
-          tone: toneSelect.value
-        });
-        renderCandidateCards(candidatesPanel, candidates, {
-          onUse: (en) => {
-            replaceEditorText(textbox, en);
-            undoBtn.style.display = 'inline-flex';
-            statusSpan.textContent = '✓ 已填入';
-            setTimeout(() => (statusSpan.textContent = ''), 2000);
-          },
-          onClose: () => {
-            candidatesPanel.style.display = 'none';
-          }
-        });
-        candidatesPanel.style.display = 'block';
-      } catch (err) {
-        statusSpan.textContent = `⚠ ${err.message}`;
-      } finally {
-        candidatesBtn.disabled = false;
-        candidatesBtn.textContent = '🎯 3个候选';
-      }
-    }
-
-    translateBtn.addEventListener('click', (e) => {
+    mainBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      handleComposeTranslate();
+      handleSmartGenerate();
     });
 
-    candidatesBtn.addEventListener('click', (e) => {
+    directBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      handleComposeCandidates();
-    });
-
-    autoReplyBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      handleAutoReplyIdeas();
+      handleDirectTranslate();
     });
 
     undoBtn.addEventListener('click', (e) => {
@@ -881,19 +1142,19 @@
       }
     });
 
-    // Shortcut: Alt + T inside the textbox
     textbox.addEventListener('keydown', (e) => {
       if (e.altKey && (e.key === 't' || e.key === 'T')) {
         e.preventDefault();
         e.stopPropagation();
-        handleComposeTranslate();
+        handleDirectTranslate();
       }
     });
 
-    leftGroup.appendChild(toneSelect);
-    leftGroup.appendChild(translateBtn);
-    leftGroup.appendChild(candidatesBtn);
-    leftGroup.appendChild(autoReplyBtn);
+    leftGroup.appendChild(stanceSelect);
+    leftGroup.appendChild(lengthSelect);
+    leftGroup.appendChild(mainBtn);
+    leftGroup.appendChild(directBtn);
+    leftGroup.appendChild(continueChip);
     leftGroup.appendChild(undoBtn);
     leftGroup.appendChild(contextBadge);
     leftGroup.appendChild(statusSpan);
@@ -908,10 +1169,9 @@
     }
   }
 
-  // --- Floating Auto-Translate Pill (Draggable & Position-Persisted) ---
+  // --- Floating Auto-Translate Pill ---
 
   let floatingPill = null;
-  const PILL_POS_KEY = 'xtr_pill_pos_v1';
 
   function clampPillPosition(left, top, el) {
     const w = el.offsetWidth || 120;
@@ -1007,7 +1267,6 @@
     document.body.appendChild(floatingPill);
     updateFloatingPill();
 
-    // Restore saved position if available
     chrome.storage.local.get(PILL_POS_KEY, (res) => {
       const pos = res?.[PILL_POS_KEY];
       if (pos && typeof pos.left === 'number' && typeof pos.top === 'number') {
@@ -1027,10 +1286,10 @@
   function updateFloatingPill() {
     if (!floatingPill) return;
     if (SETTINGS.autoTranslate) {
-      floatingPill.textContent = '🌐 自动翻译: 开';
+      floatingPill.textContent = '🌐 自动译: 开';
       floatingPill.classList.add('is-active');
     } else {
-      floatingPill.textContent = '🌐 自动翻译: 关';
+      floatingPill.textContent = '🌐 自动译: 关';
       floatingPill.classList.remove('is-active');
     }
   }
@@ -1040,12 +1299,10 @@
   function scanPage() {
     ensureFloatingPill();
 
-    // Scan new tweets
     document.querySelectorAll('[data-testid="tweetText"]:not([data-xtr-enhanced])').forEach((el) => {
       enhanceTweetText(el);
     });
 
-    // Detect "Show more" / expanded tweets whose text changed after initial enhancement
     document.querySelectorAll('[data-testid="tweetText"][data-xtr-enhanced="1"]').forEach((el) => {
       if (el.dataset.xtrState === 'loading') return;
       const currentRaw = extractTextWithEmojis(el);
@@ -1055,14 +1312,13 @@
         const container = el.nextElementSibling;
         const btn = container?.querySelector('.xtr-translate-btn');
         const resultBox = container?.querySelector('.xtr-result-box');
-        if (btn) btn.textContent = '原文已展开 · 重新翻译';
+        if (btn) btn.textContent = '重译';
         if (SETTINGS.autoTranslate && btn && resultBox) {
           enqueueTranslation(() => performTweetTranslation(el, btn, resultBox, true));
         }
       }
     });
 
-    // Scan compose/reply textboxes
     document
       .querySelectorAll('div[data-testid^="tweetTextarea_"][contenteditable="true"]:not([data-xtr-compose-enhanced])')
       .forEach((el) => {
@@ -1089,7 +1345,6 @@
     subtree: true
   });
 
-  // Initial scan
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', scanPage);
   } else {

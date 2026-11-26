@@ -28,6 +28,15 @@
     .field {
       margin-bottom: 12px;
     }
+    .field-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .field-row .field {
+      flex: 1;
+      margin-bottom: 0;
+    }
     label {
       display: block;
       margin-bottom: 5px;
@@ -124,9 +133,9 @@
   <div class="field">
     <label for="provider">模型服务商预设</label>
     <select id="provider">
-      <option value="deepseek">DeepSeek (性价比推荐)</option>
-      <option value="openai">OpenAI (GPT-4o / 4o-mini)</option>
-      <option value="gemini">Google Gemini (OpenAI 兼容端点)</option>
+      <option value="deepseek">DeepSeek (文本高性价比)</option>
+      <option value="openai">OpenAI (GPT-4o / 4o-mini · 支持识图)</option>
+      <option value="gemini">Google Gemini (支持识图)</option>
       <option value="groq">Groq</option>
       <option value="custom">自定义 (OpenAI 兼容 / Ollama)</option>
     </select>
@@ -150,19 +159,31 @@
     <input type="text" id="model" placeholder="deepseek-chat" />
   </div>
 
-  <div class="field">
-    <label for="defaultTone">发帖/回复默认美语语气</label>
-    <select id="defaultTone">
-      <option value="casual">日常美语 (Natural / Casual)</option>
-      <option value="witty">幽默玩梗 (Witty / Twitter-native)</option>
-      <option value="friendly">友好热情 (Friendly / Warm)</option>
-      <option value="professional">专业得体 (Clear / Professional)</option>
-    </select>
+  <div class="field-row">
+    <div class="field">
+      <label for="defaultTone">默认回复立场</label>
+      <select id="defaultTone">
+        <option value="mix">智能混搭 (引战/另类/接梗)</option>
+        <option value="contrarian">挑刺引战 (Contrarian)</option>
+        <option value="alternative">另类视角 (Alternative)</option>
+        <option value="witty">幽默玩梗 (Witty)</option>
+        <option value="insight">深度补充 (Insight)</option>
+        <option value="casual">日常友好 (Casual)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="defaultLength">默认回复篇幅</label>
+      <select id="defaultLength">
+        <option value="auto">长短适中</option>
+        <option value="short">短评 (1-2句)</option>
+        <option value="medium">中长评 (2-4句)</option>
+      </select>
+    </div>
   </div>
 
   <div class="field">
     <label for="glossary">自定义术语 / 固定译法（可选，每行一条）</label>
-    <textarea id="glossary" placeholder="例：&#10;小说工坊=NovelForge&#10;破防=tilted / hit hard&#10;Agent=Agent（保留英文）"></textarea>
+    <textarea id="glossary" placeholder="例：&#10;小说工坊=NovelForge&#10;破防=tilted / hit a nerve&#10;Agent=Agent（保留英文）"></textarea>
   </div>
 
   <div class="toggle-row">
@@ -184,7 +205,7 @@
   <div class="status" id="status"></div>
 
   <div class="hint">
-    提示：在 X 输入框输入中文后，点击「✨ 译为地道美语」或按 <b>Alt + T</b>，即可结合当前回复语境一键转为地道美式英语。
+    提示：支持自动识图（模型不支持时自动降级为文本+Alt）。在输入框按 <b>Alt + T</b> 可一键直译，选用候选后下次可勾选「🔗 延续上条」连贯续写。
   </div>
 
   <script src="popup.js"></script>

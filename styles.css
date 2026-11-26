@@ -1,4 +1,4 @@
-/* X 地道双语助手 - Injected Styles */
+/* X 地道双语助手 - Streamlined Injected Styles */
 
 .xtr-tweet-container {
   margin-top: 6px;
@@ -6,40 +6,46 @@
 }
 
 .xtr-tweet-controls {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
-.xtr-translate-btn {
+.xtr-translate-btn,
+.xtr-quick-reply-btn {
   appearance: none;
-  border: 1px solid rgba(29, 155, 240, 0.35);
-  background: rgba(29, 155, 240, 0.08);
-  color: rgb(29, 155, 240);
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  background: transparent;
+  color: inherit;
+  opacity: 0.78;
   font-size: 12px;
   font-weight: 500;
   line-height: 1.2;
-  padding: 3px 10px;
+  padding: 2px 9px;
   border-radius: 9999px;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
 }
 
-.xtr-translate-btn:hover:not(:disabled) {
-  background: rgba(29, 155, 240, 0.18);
-  border-color: rgba(29, 155, 240, 0.6);
+.xtr-translate-btn:hover:not(:disabled),
+.xtr-quick-reply-btn:hover:not(:disabled) {
+  opacity: 1;
+  border-color: rgba(29, 155, 240, 0.55);
+  background: rgba(29, 155, 240, 0.12);
+  color: rgb(29, 155, 240);
 }
 
 .xtr-translate-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: wait;
 }
 
 .xtr-result-box {
+  position: relative;
   margin-top: 6px;
   padding: 8px 12px;
   border-left: 3px solid rgb(29, 155, 240);
-  background: rgba(29, 155, 240, 0.07);
+  background: rgba(29, 155, 240, 0.06);
   border-radius: 6px;
   font-size: 14px;
   line-height: 1.55;
@@ -48,15 +54,52 @@
   white-space: pre-wrap;
 }
 
+.xtr-result-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .xtr-trans-text {
   font-size: 14px;
   line-height: 1.55;
+  flex: 1;
+}
+
+.xtr-retranslate-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.55;
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.xtr-retranslate-btn:hover {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.16);
+}
+
+.xtr-takeaway-box {
+  margin-top: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: rgba(255, 173, 31, 0.1);
+  border: 1px solid rgba(255, 173, 31, 0.25);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
 }
 
 .xtr-slang-notes {
   margin-top: 6px;
   padding-top: 6px;
-  border-top: 1px dashed rgba(128, 128, 128, 0.3);
+  border-top: 1px dashed rgba(128, 128, 128, 0.28);
   font-size: 12px;
   line-height: 1.45;
   opacity: 0.85;
@@ -68,20 +111,20 @@
 
 .xtr-error-text {
   color: #f4212e;
-  font-size: 13px;
+  font-size: 12.5px;
 }
 
-/* Compose / Reply Bar */
+/* Streamlined Compose / Reply Bar */
 
 .xtr-compose-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   padding: 6px 4px;
   margin: 4px 0;
-  border-top: 1px solid rgba(128, 128, 128, 0.2);
+  border-top: 1px solid rgba(128, 128, 128, 0.18);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
@@ -89,21 +132,23 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
-.xtr-tone-select {
-  background: rgba(128, 128, 128, 0.12);
+.xtr-tone-select,
+.xtr-length-select {
+  background: rgba(128, 128, 128, 0.1);
   color: inherit;
-  border: 1px solid rgba(128, 128, 128, 0.3);
+  border: 1px solid rgba(128, 128, 128, 0.26);
   border-radius: 9999px;
-  padding: 4px 10px;
+  padding: 3px 8px;
   font-size: 12px;
   cursor: pointer;
   outline: none;
 }
 
-.xtr-tone-select option {
+.xtr-tone-select option,
+.xtr-length-select option {
   background: #15202b;
   color: #ffffff;
 }
@@ -115,7 +160,7 @@
   color: #ffffff;
   font-size: 12px;
   font-weight: 600;
-  padding: 5px 12px;
+  padding: 4px 11px;
   border-radius: 9999px;
   cursor: pointer;
   transition: background 0.15s ease, opacity 0.15s ease;
@@ -126,40 +171,89 @@
 }
 
 .xtr-compose-btn:disabled {
-  opacity: 0.65;
+  opacity: 0.6;
   cursor: wait;
 }
 
+.xtr-direct-btn,
 .xtr-undo-btn {
   appearance: none;
-  border: 1px solid rgba(128, 128, 128, 0.35);
+  border: 1px solid rgba(128, 128, 128, 0.32);
   background: transparent;
   color: inherit;
   font-size: 12px;
-  padding: 4px 10px;
+  padding: 3px 9px;
   border-radius: 9999px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  transition: background 0.15s ease;
 }
 
+.xtr-direct-btn:hover:not(:disabled),
 .xtr-undo-btn:hover {
   background: rgba(128, 128, 128, 0.15);
+}
+
+.xtr-direct-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+/* Continue Previous Selection Chip */
+
+.xtr-continue-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  background: transparent;
+  color: inherit;
+  opacity: 0.78;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.xtr-continue-chip.is-active {
+  border-color: rgba(29, 155, 240, 0.65);
+  background: rgba(29, 155, 240, 0.16);
+  color: rgb(29, 155, 240);
+  opacity: 1;
+}
+
+.xtr-continue-clear {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.xtr-continue-clear:hover {
+  opacity: 1;
 }
 
 .xtr-context-badge {
   display: inline-flex;
   align-items: center;
   font-size: 11px;
-  padding: 2px 8px;
+  padding: 2px 7px;
   border-radius: 9999px;
-  background: rgba(0, 186, 124, 0.14);
+  background: rgba(0, 186, 124, 0.13);
   color: #00ba7c;
   cursor: help;
 }
 
 .xtr-compose-status {
-  font-size: 12px;
+  font-size: 11.5px;
   color: rgb(29, 155, 240);
 }
 
@@ -177,7 +271,7 @@
   backdrop-filter: blur(8px);
   font-size: 12px;
   font-weight: 600;
-  padding: 7px 14px;
+  padding: 6px 12px;
   border-radius: 9999px;
   cursor: grab;
   user-select: none;
@@ -196,75 +290,32 @@
   border-color: rgb(29, 155, 240);
 }
 
-/* Re-translate & Quick Reply & Candidate Cards */
-
-.xtr-retranslate-btn,
-.xtr-quick-reply-btn {
-  appearance: none;
-  border: 1px solid rgba(128, 128, 128, 0.35);
-  background: transparent;
-  color: inherit;
-  opacity: 0.8;
-  font-size: 12px;
-  line-height: 1.2;
-  padding: 3px 9px;
-  border-radius: 9999px;
-  cursor: pointer;
-  transition: background 0.15s ease, opacity 0.15s ease;
-}
-
-.xtr-retranslate-btn:hover,
-.xtr-quick-reply-btn:hover {
-  opacity: 1;
-  background: rgba(128, 128, 128, 0.15);
-}
-
-.xtr-candidates-btn {
-  appearance: none;
-  border: 1px solid rgba(29, 155, 240, 0.45);
-  background: rgba(29, 155, 240, 0.1);
-  color: rgb(29, 155, 240);
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 9999px;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.xtr-candidates-btn:hover:not(:disabled) {
-  background: rgba(29, 155, 240, 0.2);
-}
-
-.xtr-candidates-btn:disabled {
-  opacity: 0.6;
-  cursor: wait;
-}
+/* Quick Reply & Candidate Cards */
 
 .xtr-quick-reply-box {
-  margin-top: 8px;
+  margin-top: 6px;
   padding: 8px 10px;
   border-radius: 10px;
-  border: 1px solid rgba(128, 128, 128, 0.28);
-  background: rgba(128, 128, 128, 0.06);
+  border: 1px solid rgba(128, 128, 128, 0.26);
+  background: rgba(128, 128, 128, 0.05);
 }
 
 .xtr-qr-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
   align-items: center;
 }
 
 .xtr-qr-input {
-  flex: 1 1 200px;
+  flex: 1 1 180px;
   min-width: 0;
-  padding: 6px 10px;
+  padding: 5px 10px;
   border-radius: 9999px;
-  border: 1px solid rgba(128, 128, 128, 0.35);
+  border: 1px solid rgba(128, 128, 128, 0.3);
   background: transparent;
   color: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
   outline: none;
 }
 
@@ -285,7 +336,7 @@
   align-items: center;
   justify-content: space-between;
   font-size: 12px;
-  opacity: 0.8;
+  opacity: 0.85;
 }
 
 .xtr-close-btn {
@@ -302,15 +353,15 @@
 .xtr-candidate-card {
   padding: 8px 10px;
   border-radius: 8px;
-  border: 1px solid rgba(29, 155, 240, 0.25);
-  background: rgba(29, 155, 240, 0.06);
+  border: 1px solid rgba(29, 155, 240, 0.24);
+  background: rgba(29, 155, 240, 0.05);
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .xtr-candidate-card:hover {
   border-color: rgba(29, 155, 240, 0.65);
-  background: rgba(29, 155, 240, 0.12);
+  background: rgba(29, 155, 240, 0.11);
 }
 
 .xtr-candidate-meta {
@@ -328,12 +379,12 @@
 
 .xtr-candidate-actions {
   display: flex;
-  gap: 6px;
+  gap: 5px;
 }
 
 .xtr-mini-btn {
   appearance: none;
-  border: 1px solid rgba(128, 128, 128, 0.35);
+  border: 1px solid rgba(128, 128, 128, 0.32);
   background: transparent;
   color: inherit;
   font-size: 11px;
@@ -350,7 +401,7 @@
 
 .xtr-candidate-en {
   font-size: 13px;
-  line-height: 1.45;
+  line-height: 1.48;
   word-break: break-word;
 }
 
