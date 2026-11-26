@@ -14,9 +14,11 @@ const {
   parseJsonSafely,
   stripImagesFromMessages,
   hasImageContent,
+  sanitizeMiddleDots,
   buildTweetTranslationMessages,
   buildComposeDirectMessages,
-  buildReplyCandidatesMessages
+  buildReplyCandidatesMessages,
+  buildPostDraftMessages
 } = CORE;
 
 // Persistent LRU cache for tweet translations (key -> { translation, takeaway, slangNotes })
@@ -354,6 +356,48 @@ async function generateReplyCandidates({
   };
 }
 
+async function generatePostDraft({
+  source = '',
+  postMode = 'news_post',
+  sourceLink = '',
+  context = '',
+  images = [],
+  continuation = null
+}) {
+  if ((!source || !source.trim()) && (!context || !context.trim()) && (!images || images.length === 0)) {
+    throw new Error('请先输入真实素材、新闻要点或笔记');
+  }
+
+  const settings = await getSettings();
+  const resolvedImages = await resolveImagesForLLM(images);
+  const messages = buildPostDraftMessages({
+    source,
+    postMode,
+    sourceLink,
+    context,
+    images: resolvedImages,
+    continuation,
+    glossary: settings.glossary
+  });
+
+  const { content: raw, visionFallback } = await callLLM(messages, { temperature: 0.65, jsonMode: true });
+  const parsed = parseJsonSafely(raw);
+  const mainPost = sanitizeMiddleDots(parsed?.main_post || '');
+  if (!mainPost) {
+    throw new Error('未能生成成稿内容，请重试');
+  }
+
+  return {
+    title: sanitizeMiddleDots(parsed?.title || ''),
+    mainPost,
+    firstReply: sanitizeMiddleDots(parsed?.first_reply || ''),
+    zhSummary: sanitizeMiddleDots(parsed?.zh_summary || ''),
+    factCheckNote: sanitizeMiddleDots(parsed?.fact_check_note || ''),
+    postMode,
+    visionFallback
+  };
+}
+
 async function handleMessage(message) {
   if (message.type === 'TRANSLATE_TWEET') {
     return translateTweetToChinese(
@@ -397,6 +441,16 @@ async function handleMessage(message) {
       continuation: message.continuation || null
     });
   }
+  if (message.type === 'GENERATE_POST_DRAFT') {
+    return generatePostDraft({
+      source: message.source || '',
+      postMode: message.postMode || 'news_post',
+      sourceLink: message.sourceLink || '',
+      context: message.context || '',
+      images: message.images || [],
+      continuation: message.continuation || null
+    });
+  }
   if (message.type === 'TEST_CONNECTION') {
     const { content } = await callLLM([
       { role: 'system', content: 'Reply with just "OK".' },
@@ -431,6 +485,7 @@ if (typeof module === 'object' && module.exports) {
     translateTweetToChinese,
     translateChineseToAmericanEnglish,
     generateReplyCandidates,
+    generatePostDraft,
     resolveImagesForLLM,
     _resetCacheForTest: () => {
       translationCache.clear();

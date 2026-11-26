@@ -146,4 +146,51 @@ describe('lib/core.js', () => {
       assert.equal(core.hasChinese('Hello world'), false);
     });
   });
+
+  describe('editorial post & article writer helpers', () => {
+    it('sanitizes middle dots and bullet dots into spaces while preserving paragraph breaks', () => {
+      const input = 'OpenAI·Google  ·  Anthropic\n\n• First point\nLine·two';
+      assert.equal(
+        core.sanitizeMiddleDots(input),
+        'OpenAI Google Anthropic\n\n First point\nLine two'.trim()
+      );
+      assert.equal(core.sanitizeMiddleDots(input).includes('·'), false);
+      assert.equal(core.sanitizeMiddleDots(input).includes('•'), false);
+    });
+
+    it('extracts unique URLs from source notes', () => {
+      const urls = core.extractUrls('See https://openai.com/blog/test and https://openai.com/blog/test plus http://example.com/a');
+      assert.deepEqual(urls, ['https://openai.com/blog/test', 'http://example.com/a']);
+    });
+
+    it('builds news_post prompt enforcing editorial constitution and first-reply link split', () => {
+      const msgs = core.buildPostDraftMessages({
+        source: 'OpenAI just cut API pricing by 50% https://openai.com/pricing',
+        postMode: 'news_post'
+      });
+      assert.match(msgs[0].content, /Strict Factual Grounding/);
+      assert.match(msgs[0].content, /First-Person Perspective/);
+      assert.match(msgs[0].content, /No Middle Dots/);
+      assert.match(msgs[0].content, /No Throat-Clearing Openers/);
+      assert.match(msgs[0].content, /first_reply/);
+      assert.match(msgs[0].content, /NEVER write "I plan to\.\.\."/);
+      assert.match(msgs[1].content, /https:\/\/openai\.com\/pricing/);
+    });
+
+    it('builds long_article and method_guide prompts with mode-specific directives', () => {
+      const articleMsgs = core.buildPostDraftMessages({
+        source: 'Why Apple Intelligence is lagging behind cloud models.',
+        postMode: 'long_article'
+      });
+      assert.match(articleMsgs[0].content, /LONG-FORM X POST \/ ARTICLE/);
+      assert.match(articleMsgs[0].content, /concrete, specific real-world scenarios/);
+
+      const methodMsgs = core.buildPostDraftMessages({
+        source: 'My exact prompt review loop for shipping Chrome extensions.',
+        postMode: 'method_guide'
+      });
+      assert.match(methodMsgs[0].content, /PRACTICAL METHOD \/ WORKFLOW GUIDE/);
+      assert.match(methodMsgs[0].content, /COMPLETELY/);
+    });
+  });
 });

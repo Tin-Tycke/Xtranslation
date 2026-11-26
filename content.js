@@ -8,10 +8,12 @@
   const {
     STANCE_OPTIONS,
     LENGTH_OPTIONS,
+    POST_MODES,
     isMostlyChinese,
     hasChinese,
     normalizeStance,
-    normalizeLength
+    normalizeLength,
+    normalizePostMode
   } = CORE;
 
   const SETTINGS = {
@@ -27,6 +29,7 @@
   const SESSION_STATE = {
     lastStance: 'mix',
     lastLength: 'auto',
+    lastPostMode: 'news_post',
     lastSelection: null, // { en, zh_back, style, timestamp }
     continueEnabled: false
   };
@@ -368,6 +371,7 @@
     if (saved) {
       if (saved.lastStance) SESSION_STATE.lastStance = normalizeStance(saved.lastStance);
       if (saved.lastLength) SESSION_STATE.lastLength = normalizeLength(saved.lastLength);
+      if (saved.lastPostMode) SESSION_STATE.lastPostMode = normalizePostMode(saved.lastPostMode);
       if (saved.lastSelection && saved.lastSelection.en) {
         SESSION_STATE.lastSelection = saved.lastSelection;
         SESSION_STATE.continueEnabled = Boolean(saved.continueEnabled);
@@ -1150,10 +1154,255 @@
       }
     });
 
+    const writerToggleBtn = document.createElement('button');
+    writerToggleBtn.type = 'button';
+    writerToggleBtn.className = 'xtr-writer-toggle-btn';
+    writerToggleBtn.textContent = '✍️ 写帖';
+    writerToggleBtn.title = '面向英文科技/AI区生成新闻快评、深度长文或方法实战帖';
+
+    const writerPanel = document.createElement('div');
+    writerPanel.className = 'xtr-writer-panel';
+    writerPanel.style.display = 'none';
+
+    const buildWriterPanel = () => {
+      if (writerPanel.dataset.built === '1') return;
+      writerPanel.dataset.built = '1';
+
+      const topRow = document.createElement('div');
+      topRow.className = 'xtr-writer-top';
+
+      const modesWrap = document.createElement('div');
+      modesWrap.className = 'xtr-writer-modes';
+      const modeBtns = new Map();
+
+      POST_MODES.forEach((m) => {
+        const pill = document.createElement('button');
+        pill.type = 'button';
+        pill.className = 'xtr-mode-pill';
+        pill.textContent = m.label;
+        pill.classList.toggle('is-active', SESSION_STATE.lastPostMode === m.value);
+        pill.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          SESSION_STATE.lastPostMode = m.value;
+          persistSessionState();
+        });
+        modeBtns.set(m.value, pill);
+        modesWrap.appendChild(pill);
+      });
+
+      const closeWriterBtn = document.createElement('button');
+      closeWriterBtn.type = 'button';
+      closeWriterBtn.className = 'xtr-close-btn';
+      closeWriterBtn.textContent = '×';
+      closeWriterBtn.addEventListener('click', () => {
+        writerPanel.style.display = 'none';
+        writerToggleBtn.classList.remove('is-active');
+      });
+
+      topRow.appendChild(modesWrap);
+      topRow.appendChild(closeWriterBtn);
+
+      const sourceArea = document.createElement('textarea');
+      sourceArea.className = 'xtr-writer-textarea';
+      sourceArea.placeholder =
+        '贴入已核实的事实/大公司动态/AI观察笔记（留空则直接读取上方输入框内容；严禁编造数据与体验）';
+
+      const bottomRow = document.createElement('div');
+      bottomRow.className = 'xtr-writer-bottom';
+
+      const linkInput = document.createElement('input');
+      linkInput.type = 'text';
+      linkInput.className = 'xtr-writer-link';
+      linkInput.placeholder = '可选：原文链接（新闻快评自动拆到首评）';
+
+      const genPostBtn = document.createElement('button');
+      genPostBtn.type = 'button';
+      genPostBtn.className = 'xtr-compose-btn';
+      genPostBtn.textContent = '⚡ 生成成稿';
+
+      const resultWrap = document.createElement('div');
+      resultWrap.className = 'xtr-writer-result';
+      resultWrap.style.display = 'none';
+
+      sessionSyncListeners.add(() => {
+        modeBtns.forEach((pill, val) => {
+          pill.classList.toggle('is-active', SESSION_STATE.lastPostMode === val);
+        });
+      });
+
+      const renderDraftResult = (draft) => {
+        resultWrap.innerHTML = '';
+
+        if (draft.zhSummary) {
+          const sumDiv = document.createElement('div');
+          sumDiv.className = 'xtr-takeaway-box';
+          sumDiv.textContent = `🎯 核心判断：${draft.zhSummary}`;
+          resultWrap.appendChild(sumDiv);
+        }
+
+        const mainBlock = document.createElement('div');
+        mainBlock.className = 'xtr-writer-block';
+
+        const mainMeta = document.createElement('div');
+        mainMeta.className = 'xtr-candidate-meta';
+
+        const mainLabel = document.createElement('span');
+        mainLabel.className = 'xtr-candidate-style';
+        mainLabel.textContent = draft.title ? `主贴 / 长文：${draft.title}` : '主贴成稿';
+
+        const mainActions = document.createElement('div');
+        mainActions.className = 'xtr-candidate-actions';
+
+        const fullText = draft.title ? `${draft.title}\n\n${draft.mainPost}` : draft.mainPost;
+
+        const copyMainBtn = document.createElement('button');
+        copyMainBtn.type = 'button';
+        copyMainBtn.className = 'xtr-mini-btn';
+        copyMainBtn.textContent = '复制';
+        copyMainBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          recordSelectedCandidate({ en: draft.mainPost, zh_back: draft.zhSummary, style: '成稿' });
+          navigator.clipboard?.writeText(fullText).then(() => {
+            copyMainBtn.textContent = '已复制';
+            setTimeout(() => (copyMainBtn.textContent = '复制'), 1500);
+          });
+        });
+
+        const fillMainBtn = document.createElement('button');
+        fillMainBtn.type = 'button';
+        fillMainBtn.className = 'xtr-mini-btn is-primary';
+        fillMainBtn.textContent = '填入主贴';
+        fillMainBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const prevText = (textbox.innerText || '').trim();
+          if (prevText && hasChinese(prevText)) {
+            originalDrafts.set(textbox, prevText);
+            undoBtn.style.display = 'inline-flex';
+          }
+          replaceEditorText(textbox, fullText);
+          recordSelectedCandidate({ en: draft.mainPost, zh_back: draft.zhSummary, style: '成稿' });
+          statusSpan.textContent = '✓ 已填入成稿';
+          setTimeout(() => (statusSpan.textContent = ''), 2200);
+        });
+
+        mainActions.appendChild(copyMainBtn);
+        mainActions.appendChild(fillMainBtn);
+        mainMeta.appendChild(mainLabel);
+        mainMeta.appendChild(mainActions);
+
+        const mainBody = document.createElement('div');
+        mainBody.className = 'xtr-writer-body';
+        mainBody.textContent = draft.mainPost;
+
+        mainBlock.appendChild(mainMeta);
+        mainBlock.appendChild(mainBody);
+        resultWrap.appendChild(mainBlock);
+
+        if (draft.firstReply) {
+          const replyBlock = document.createElement('div');
+          replyBlock.className = 'xtr-writer-block is-first-reply';
+
+          const replyMeta = document.createElement('div');
+          replyMeta.className = 'xtr-candidate-meta';
+
+          const replyLabel = document.createElement('span');
+          replyLabel.className = 'xtr-candidate-style';
+          replyLabel.textContent = '首评（放链接）';
+
+          const copyReplyBtn = document.createElement('button');
+          copyReplyBtn.type = 'button';
+          copyReplyBtn.className = 'xtr-mini-btn';
+          copyReplyBtn.textContent = '复制首评';
+          copyReplyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            navigator.clipboard?.writeText(draft.firstReply).then(() => {
+              copyReplyBtn.textContent = '已复制';
+              setTimeout(() => (copyReplyBtn.textContent = '复制首评'), 1500);
+            });
+          });
+
+          replyMeta.appendChild(replyLabel);
+          replyMeta.appendChild(copyReplyBtn);
+
+          const replyBody = document.createElement('div');
+          replyBody.className = 'xtr-writer-body';
+          replyBody.textContent = draft.firstReply;
+
+          replyBlock.appendChild(replyMeta);
+          replyBlock.appendChild(replyBody);
+          resultWrap.appendChild(replyBlock);
+        }
+
+        if (draft.factCheckNote) {
+          const noteDiv = document.createElement('div');
+          noteDiv.className = 'xtr-writer-note';
+          noteDiv.textContent = `📌 事实核对提示：${draft.factCheckNote}`;
+          resultWrap.appendChild(noteDiv);
+        }
+
+        resultWrap.style.display = 'flex';
+      };
+
+      genPostBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const rawSource = sourceArea.value.trim() || (textbox.innerText || '').trim();
+        const { context, images } = extractReplyContextPayload(textbox);
+        if (!rawSource && !context && images.length === 0) {
+          renderErrorMessage(resultWrap, '提示', new Error('请先输入核实过的素材、新闻要点或笔记'));
+          resultWrap.style.display = 'flex';
+          return;
+        }
+
+        genPostBtn.disabled = true;
+        genPostBtn.textContent = '写作中...';
+        try {
+          const draft = await sendMessageAsync({
+            type: 'GENERATE_POST_DRAFT',
+            source: rawSource,
+            postMode: SESSION_STATE.lastPostMode,
+            sourceLink: linkInput.value.trim(),
+            context,
+            images,
+            continuation: getActiveContinuation()
+          });
+          renderDraftResult(draft);
+        } catch (err) {
+          renderErrorMessage(resultWrap, '生成失败', err);
+          resultWrap.style.display = 'flex';
+        } finally {
+          genPostBtn.disabled = false;
+          genPostBtn.textContent = '⚡ 生成成稿';
+        }
+      });
+
+      bottomRow.appendChild(linkInput);
+      bottomRow.appendChild(genPostBtn);
+
+      writerPanel.appendChild(topRow);
+      writerPanel.appendChild(sourceArea);
+      writerPanel.appendChild(bottomRow);
+      writerPanel.appendChild(resultWrap);
+    };
+
+    writerToggleBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      buildWriterPanel();
+      const showing = writerPanel.style.display !== 'none';
+      writerPanel.style.display = showing ? 'none' : 'flex';
+      writerToggleBtn.classList.toggle('is-active', !showing);
+      if (!showing) {
+        writerPanel.querySelector('.xtr-writer-textarea')?.focus();
+      }
+    });
+
     leftGroup.appendChild(stanceSelect);
     leftGroup.appendChild(lengthSelect);
     leftGroup.appendChild(mainBtn);
     leftGroup.appendChild(directBtn);
+    leftGroup.appendChild(writerToggleBtn);
     leftGroup.appendChild(continueChip);
     leftGroup.appendChild(undoBtn);
     leftGroup.appendChild(contextBadge);
@@ -1161,6 +1410,7 @@
 
     bar.appendChild(leftGroup);
     bar.appendChild(candidatesPanel);
+    bar.appendChild(writerPanel);
 
     if (toolbar && toolbar.parentElement) {
       toolbar.parentElement.insertBefore(bar, toolbar);

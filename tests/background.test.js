@@ -215,4 +215,48 @@ describe('background.js', () => {
     const res = await bg.handleMessage({ type: 'TEST_CONNECTION' });
     assert.equal(res, 'OK');
   });
+
+  it('generates post draft via GENERATE_POST_DRAFT and strips any middle dots from LLM output', async () => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                title: '',
+                main_post: 'Everyone thinks Apple·OpenAI won this round.\n\nThey missed the distribution bottleneck.',
+                first_reply: 'Source·link: https://example.com/news',
+                zh_summary: '苹果·OpenAI 合作并非稳赢，分发才是瓶颈',
+                fact_check_note: '严格基于原文·未编造数据'
+              })
+            }
+          }
+        ]
+      })
+    });
+
+    const draft = await bg.handleMessage({
+      type: 'GENERATE_POST_DRAFT',
+      source: 'Apple and OpenAI announced partnership details.',
+      postMode: 'news_post',
+      sourceLink: 'https://example.com/news'
+    });
+
+    assert.equal(draft.mainPost.includes('·'), false);
+    assert.equal(draft.firstReply.includes('·'), false);
+    assert.equal(draft.zhSummary.includes('·'), false);
+    assert.equal(draft.factCheckNote.includes('·'), false);
+    assert.match(draft.mainPost, /Apple OpenAI/);
+    assert.match(draft.firstReply, /https:\/\/example\.com\/news/);
+    assert.equal(draft.postMode, 'news_post');
+  });
+
+  it('rejects GENERATE_POST_DRAFT when source, context, and images are all empty', async () => {
+    await assert.rejects(
+      () => bg.handleMessage({ type: 'GENERATE_POST_DRAFT', source: '   ' }),
+      /请先输入真实素材/
+    );
+  });
 });
