@@ -20,6 +20,7 @@ const {
   stripImagesFromMessages,
   hasImageContent,
   sanitizeMiddleDots,
+  normalizeRegion,
   normalizePostMode,
   extractUrls,
   buildTweetTranslationMessages,
@@ -336,6 +337,7 @@ async function generateReplyCandidates({
   }
 
   const settings = await getSettings();
+  const region = normalizeRegion(settings.targetRegion);
   const resolvedImages = await resolveImagesForLLM(images);
   const messages = buildReplyCandidatesMessages({
     context,
@@ -344,7 +346,8 @@ async function generateReplyCandidates({
     stance: stance || tone || settings.defaultTone,
     length: length || settings.defaultLength,
     continuation,
-    glossary: settings.glossary
+    glossary: settings.glossary,
+    region
   });
 
   const { content: raw, visionFallback } = await callLLM(messages, { temperature: 0.72, jsonMode: true });
@@ -355,17 +358,21 @@ async function generateReplyCandidates({
   }
 
   const candidates = list
-    .filter((item) => item && item.en)
+    .filter((item) => item && (item.en || item.text))
     .slice(0, 3)
-    .map((item) => ({
-      style: item.style || '推荐表达',
-      en: String(item.en).replace(/^["“]|["”]$/g, '').trim(),
-      zh_back: item.zh_back ? String(item.zh_back).trim() : ''
-    }));
+    .map((item) => {
+      const rawReply = String(item.en || item.text).replace(/^["“]|["”]$/g, '').trim();
+      return {
+        style: sanitizeMiddleDots(item.style || '推荐表达'),
+        en: region === 'zh' ? sanitizeMiddleDots(rawReply) : rawReply,
+        zh_back: region === 'zh' ? '' : item.zh_back ? sanitizeMiddleDots(String(item.zh_back).trim()) : ''
+      };
+    });
 
   return {
-    postTakeaway: typeof parsed?.post_takeaway === 'string' ? parsed.post_takeaway.trim() : '',
+    postTakeaway: typeof parsed?.post_takeaway === 'string' ? sanitizeMiddleDots(parsed.post_takeaway.trim()) : '',
     candidates,
+    region,
     visionFallback
   };
 }
@@ -395,6 +402,7 @@ async function generatePostDraft({
   }
 
   const settings = await getSettings();
+  const region = normalizeRegion(settings.targetRegion);
   const resolvedImages = await resolveImagesForLLM(images);
   const messages = buildPostDraftMessages({
     source,
@@ -403,7 +411,8 @@ async function generatePostDraft({
     context,
     images: resolvedImages,
     continuation,
-    glossary: settings.glossary
+    glossary: settings.glossary,
+    region
   });
 
   const { content: raw, visionFallback } = await callLLM(messages, { temperature: 0.65, jsonMode: true });
@@ -431,8 +440,9 @@ const radarCache = new Map();
 
 async function fetchRadarTopics({ focus = '', force = false } = {}) {
   const settings = await getSettings();
+  const region = normalizeRegion(settings.targetRegion);
   const focusKey = (focus || '').trim().toLowerCase();
-  const cacheKey = `${settings.grokApiKey ? 'g1' : 'g0'}:${focusKey}`;
+  const cacheKey = `${region}:${settings.grokApiKey ? 'g1' : 'g0'}:${focusKey}`;
   const cached = radarCache.get(cacheKey);
   if (!force && cached && Date.now() - cached.fetchedAt < RADAR_CACHE_TTL_MS) {
     return cached;
@@ -451,7 +461,8 @@ async function fetchRadarTopics({ focus = '', force = false } = {}) {
 
   const messages = buildTopicCurationMessages(items, {
     customFocus: focus,
-    glossary: settings.glossary
+    glossary: settings.glossary,
+    region
   });
 
   const { content: raw } = await callLLM(messages, { temperature: 0.35, jsonMode: true });

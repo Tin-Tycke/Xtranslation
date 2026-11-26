@@ -259,4 +259,43 @@ describe('background.js', () => {
       /请先输入真实素材/
     );
   });
+
+  it('generates Chinese-region replies with empty zh_back and no middle dots when targetRegion is zh', async () => {
+    globalThis.chrome = createChromeMock({ targetRegion: 'zh' });
+    let systemPromptSent = '';
+    globalThis.fetch = async (_url, opts) => {
+      const body = JSON.parse(opts.body);
+      systemPromptSent = body.messages[0].content;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  post_takeaway: '博主认为大模型·API 降价会让创业公司出局',
+                  candidates: [
+                    { style: '挑刺·引战', en: '真正卷死的不是创业公司·是套壳产品', zh_back: '不应该显示回译' }
+                  ]
+                })
+              }
+            }
+          ]
+        })
+      };
+    };
+
+    const res = await bg.handleMessage({
+      type: 'GENERATE_AUTO_REPLIES',
+      context: '@tech_cn: 大模型降价卷死创业公司',
+      stance: 'contrarian'
+    });
+
+    assert.match(systemPromptSent, /简体中文/);
+    assert.equal(res.region, 'zh');
+    assert.equal(res.postTakeaway.includes('·'), false);
+    assert.equal(res.candidates[0].en, '真正卷死的不是创业公司 是套壳产品');
+    assert.equal(res.candidates[0].zh_back, '');
+  });
 });

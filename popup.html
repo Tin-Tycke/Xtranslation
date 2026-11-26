@@ -131,6 +131,14 @@
   <h1>🌐 X 地道双语助手</h1>
 
   <div class="field">
+    <label for="targetRegion">面向地区 / 运营模式</label>
+    <select id="targetRegion">
+      <option value="en">英文区（英译中 + 英文回帖 / 写新闻长文）</option>
+      <option value="zh">中文区（关闭翻译 · 纯中文回帖 / 写新闻长文）</option>
+    </select>
+  </div>
+
+  <div class="field">
     <label for="provider">模型服务商预设</label>
     <select id="provider">
       <option value="deepseek">DeepSeek (文本高性价比)</option>
@@ -197,12 +205,12 @@
     </div>
   </div>
 
-  <div class="toggle-row">
+  <div class="toggle-row" id="autoTranslateRow">
     <label for="autoTranslate">滚动时自动翻译英文推文</label>
     <input type="checkbox" id="autoTranslate" />
   </div>
 
-  <div class="toggle-row">
+  <div class="toggle-row" id="showSlangNotesRow">
     <label for="showSlangNotes">附带俚语/俗语/梗解析</label>
     <input type="checkbox" id="showSlangNotes" checked />
   </div>

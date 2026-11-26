@@ -18,6 +18,9 @@ const PRESETS = {
 };
 
 const els = {
+  targetRegion: document.getElementById('targetRegion'),
+  autoTranslateRow: document.getElementById('autoTranslateRow'),
+  showSlangNotesRow: document.getElementById('showSlangNotesRow'),
   provider: document.getElementById('provider'),
   apiBaseUrl: document.getElementById('apiBaseUrl'),
   apiKey: document.getElementById('apiKey'),
@@ -47,9 +50,20 @@ function showStatus(msg, isError = false) {
   els.status.classList.toggle('error', isError);
 }
 
+function syncRegionUI() {
+  const isZh = els.targetRegion.value === 'zh';
+  els.autoTranslateRow.style.opacity = isZh ? '0.45' : '1';
+  els.showSlangNotesRow.style.opacity = isZh ? '0.45' : '1';
+  els.autoTranslate.disabled = isZh;
+  els.showSlangNotes.disabled = isZh;
+}
+
+els.targetRegion.addEventListener('change', syncRegionUI);
+
 function loadSettings() {
   chrome.storage.sync.get(
     {
+      targetRegion: 'en',
       provider: 'deepseek',
       apiBaseUrl: 'https://api.deepseek.com/v1',
       apiKey: '',
@@ -63,6 +77,7 @@ function loadSettings() {
       showSlangNotes: true
     },
     (items) => {
+      els.targetRegion.value = items.targetRegion === 'zh' ? 'zh' : 'en';
       els.provider.value = items.provider;
       els.apiBaseUrl.value = items.apiBaseUrl;
       els.apiKey.value = items.apiKey;
@@ -76,6 +91,7 @@ function loadSettings() {
       els.grokModel.value = items.grokModel || 'grok-3-mini';
       els.autoTranslate.checked = Boolean(items.autoTranslate);
       els.showSlangNotes.checked = Boolean(items.showSlangNotes);
+      syncRegionUI();
     }
   );
 }
@@ -83,6 +99,7 @@ function loadSettings() {
 function saveSettings(silent = false) {
   return new Promise((resolve) => {
     const data = {
+      targetRegion: els.targetRegion.value === 'zh' ? 'zh' : 'en',
       provider: els.provider.value,
       apiBaseUrl: els.apiBaseUrl.value.trim(),
       apiKey: els.apiKey.value.trim(),

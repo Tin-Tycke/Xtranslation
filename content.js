@@ -17,11 +17,16 @@
   } = CORE;
 
   const SETTINGS = {
+    targetRegion: 'en',
     autoTranslate: false,
     showSlangNotes: true,
     defaultTone: 'mix',
     defaultLength: 'auto'
   };
+
+  function isChineseRegion() {
+    return SETTINGS.targetRegion === 'zh';
+  }
 
   const SESSION_STATE_KEY = 'xtr_session_state_v1';
   const PILL_POS_KEY = 'xtr_pill_pos_v1';
@@ -372,11 +377,31 @@
     });
   }
 
+  function applyRegionVisibility() {
+    const zh = isChineseRegion();
+    if (floatingPill) {
+      floatingPill.style.display = zh ? 'none' : '';
+    }
+    document.querySelectorAll('.xtr-translate-btn').forEach((el) => {
+      el.style.display = zh ? 'none' : '';
+    });
+    document.querySelectorAll('.xtr-direct-btn').forEach((el) => {
+      if (zh) el.style.display = 'none';
+    });
+    if (zh) {
+      document.querySelectorAll('[data-testid="tweetText"][data-xtr-enhanced="skip"]').forEach((el) => {
+        delete el.dataset.xtrEnhanced;
+      });
+      scanPage();
+    }
+  }
+
   chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (res) => {
     if (res?.ok && res.data) {
       Object.assign(SETTINGS, res.data);
       updateFloatingPill();
-      if (SETTINGS.autoTranslate) {
+      applyRegionVisibility();
+      if (!isChineseRegion() && SETTINGS.autoTranslate) {
         observeVisibleTweets();
       }
     }
@@ -404,10 +429,18 @@
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'sync') return;
+    if (changes.targetRegion) {
+      SETTINGS.targetRegion = changes.targetRegion.newValue === 'zh' ? 'zh' : 'en';
+      updateFloatingPill();
+      applyRegionVisibility();
+      if (!isChineseRegion() && SETTINGS.autoTranslate) {
+        observeVisibleTweets();
+      }
+    }
     if (changes.autoTranslate) {
       SETTINGS.autoTranslate = Boolean(changes.autoTranslate.newValue);
       updateFloatingPill();
-      if (SETTINGS.autoTranslate) {
+      if (!isChineseRegion() && SETTINGS.autoTranslate) {
         observeVisibleTweets();
       }
     }
@@ -516,9 +549,13 @@
     const header = document.createElement('div');
     header.className = 'xtr-candidates-header';
     const title = document.createElement('span');
-    title.textContent = visionFallback
-      ? '选择回复（当前模型不支持识图，已按文本分析）：'
-      : '选择地道美语表达（选中后可延续）：';
+    if (visionFallback) {
+      title.textContent = '选择回复（当前模型不支持识图，已按文本分析）：';
+    } else if (isChineseRegion()) {
+      title.textContent = '选择中文回复（选中后可延续）：';
+    } else {
+      title.textContent = '选择地道美语表达（选中后可延续）：';
+    }
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
     closeBtn.className = 'xtr-close-btn';
@@ -730,7 +767,7 @@
   function enhanceTweetText(tweetTextEl) {
     if (tweetTextEl.dataset.xtrEnhanced === '1') return;
     const rawText = extractTextWithEmojis(tweetTextEl);
-    if (!rawText || isMostlyChinese(rawText)) {
+    if (!rawText || (!isChineseRegion() && isMostlyChinese(rawText))) {
       tweetTextEl.dataset.xtrEnhanced = 'skip';
       return;
     }
@@ -750,12 +787,15 @@
     btn.className = 'xtr-translate-btn';
     btn.textContent = '译';
     btn.title = '翻译为地道中文并提炼主贴意图';
+    if (isChineseRegion()) {
+      btn.style.display = 'none';
+    }
 
     const quickReplyBtn = document.createElement('button');
     quickReplyBtn.type = 'button';
     quickReplyBtn.className = 'xtr-quick-reply-btn';
     quickReplyBtn.textContent = '回';
-    quickReplyBtn.title = '结合主贴图文生成多角度英文回复';
+    quickReplyBtn.title = isChineseRegion() ? '结合主贴图文生成多角度中文回复' : '结合主贴图文生成多角度英文回复';
 
     const resultBox = document.createElement('div');
     resultBox.className = 'xtr-result-box';
@@ -874,7 +914,7 @@
 
     tweetTextEl.insertAdjacentElement('afterend', container);
 
-    if (SETTINGS.autoTranslate && tweetObserver) {
+    if (!isChineseRegion() && SETTINGS.autoTranslate && tweetObserver) {
       tweetObserver.observe(tweetTextEl);
     }
   }
@@ -1044,9 +1084,9 @@
       const hasDraft = Boolean(currentText && hasChinese(currentText));
 
       if (!mainBtn.disabled) {
-        mainBtn.textContent = hasDraft ? '✨ 生成3选' : '⚡ 生成回复';
+        mainBtn.textContent = hasDraft ? (isChineseRegion() ? '✨ 润色3选' : '✨ 生成3选') : '⚡ 生成回复';
       }
-      directBtn.style.display = hasDraft || originalDrafts.has(textbox) ? 'inline-flex' : 'none';
+      directBtn.style.display = !isChineseRegion() && (hasDraft || originalDrafts.has(textbox)) ? 'inline-flex' : 'none';
 
       if (images.length > 0) {
         contextBadge.textContent = `🖼️+${images.length}图`;
@@ -1197,7 +1237,7 @@
     });
 
     textbox.addEventListener('keydown', (e) => {
-      if (e.altKey && (e.key === 't' || e.key === 'T')) {
+      if (!isChineseRegion() && e.altKey && (e.key === 't' || e.key === 'T')) {
         e.preventDefault();
         e.stopPropagation();
         handleDirectTranslate();
@@ -1995,6 +2035,11 @@
 
   function updateFloatingPill() {
     if (!floatingPill) return;
+    if (isChineseRegion()) {
+      floatingPill.style.display = 'none';
+      return;
+    }
+    floatingPill.style.display = '';
     if (SETTINGS.autoTranslate) {
       floatingPill.textContent = '🌐 自动译: 开';
       floatingPill.classList.add('is-active');

@@ -192,5 +192,28 @@ describe('lib/core.js', () => {
       assert.match(methodMsgs[0].content, /PRACTICAL METHOD \/ WORKFLOW GUIDE/);
       assert.match(methodMsgs[0].content, /COMPLETELY/);
     });
+
+    it('builds Chinese-region reply and post prompts following the editorial constitution', () => {
+      const zhReplyMsgs = core.buildReplyCandidatesMessages({
+        context: '@tech_cn: 大模型价格战已经彻底把创业公司卷死了',
+        stance: 'contrarian',
+        length: 'medium',
+        region: 'zh'
+      });
+      assert.match(zhReplyMsgs[0].content, /简体中文/);
+      assert.match(zhReplyMsgs[0].content, /严禁使用间隔号/);
+
+      const zhPostMsgs = core.buildPostDraftMessages({
+        source: 'Anthropic 发布新版本 Claude，上下文定价不变',
+        postMode: 'news_post',
+        sourceLink: 'https://www.anthropic.com/news/test',
+        region: 'zh'
+      });
+      assert.match(zhPostMsgs[0].content, /只写真实核实过的内容/);
+      assert.match(zhPostMsgs[0].content, /强制第一人称视角/);
+      assert.match(zhPostMsgs[0].content, /严禁使用间隔号/);
+      assert.match(zhPostMsgs[0].content, /不要整齐分点和并列排比/);
+      assert.match(zhPostMsgs[1].content, /https:\/\/www\.anthropic\.com\/news\/test/);
+    });
   });
 });
