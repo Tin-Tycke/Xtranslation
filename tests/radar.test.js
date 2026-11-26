@@ -48,6 +48,43 @@ describe('lib/radar.js', () => {
     });
   });
 
+  describe('parseHtmlNewsLinks & curated source catalog', () => {
+    it('extracts official lab news links while skipping short nav links and root index links', () => {
+      const html = `
+        <nav><a href="/news/">News</a><a href="/about">About Anthropic</a></nav>
+        <main>
+          <a href="/news/claude-4-release">Introducing Claude 4 with extended agentic reasoning</a>
+          <a href="/news/claude-4-release">Duplicate link to same post</a>
+          <a href="/news/safety-update">Updated Responsible Scaling Policy for frontier models</a>
+        </main>
+      `;
+      const items = radar.parseHtmlNewsLinks(html, 'https://www.anthropic.com/news', 'Anthropic', {
+        pathPrefix: '/news/',
+        category: 'official_labs',
+        limit: 4
+      });
+      assert.equal(items.length, 2);
+      assert.equal(items[0].url, 'https://www.anthropic.com/news/claude-4-release');
+      assert.equal(items[0].category, 'official_labs');
+      assert.equal(items[1].url, 'https://www.anthropic.com/news/safety-update');
+    });
+
+    it('includes all curated fast media, official labs, and newsletter feeds', () => {
+      const rssNames = radar.DEFAULT_RSS_FEEDS.map((f) => f.name);
+      const htmlNames = radar.DEFAULT_HTML_NEWS_SOURCES.map((f) => f.name);
+      assert.ok(rssNames.includes('Ars Technica AI'));
+      assert.ok(rssNames.includes('The Decoder'));
+      assert.ok(rssNames.includes('VentureBeat AI'));
+      assert.ok(rssNames.includes('Google DeepMind'));
+      assert.ok(rssNames.includes('Import AI'));
+      assert.ok(htmlNames.includes('Anthropic'));
+      assert.ok(htmlNames.includes('Meta AI'));
+      assert.ok(htmlNames.includes('Mistral'));
+      assert.ok(htmlNames.includes('xAI'));
+      assert.ok(htmlNames.includes('TLDR AI'));
+    });
+  });
+
   describe('isTechAiRelevant & dedupeAndRankItems', () => {
     it('filters AI / Big Tech items and respects custom focus tokens', () => {
       assert.equal(radar.isTechAiRelevant('Anthropic releases Claude 4.5 benchmarks'), true);
