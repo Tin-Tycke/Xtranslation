@@ -21,6 +21,7 @@ const {
   hasImageContent,
   sanitizeMiddleDots,
   normalizePostMode,
+  extractUrls,
   buildTweetTranslationMessages,
   buildComposeDirectMessages,
   buildReplyCandidatesMessages,
@@ -30,7 +31,8 @@ const {
 const {
   fetchAllRadarSources,
   buildTopicCurationMessages,
-  enrichSelectedTopic
+  fetchArticleDetails,
+  enrichSelectedTopicWithMedia
 } = RADAR;
 
 // Persistent LRU cache for tweet translations (key -> { translation, takeaway, slangNotes })
@@ -374,10 +376,22 @@ async function generatePostDraft({
   sourceLink = '',
   context = '',
   images = [],
-  continuation = null
+  continuation = null,
+  mediaAssets = null
 }) {
   if ((!source || !source.trim()) && (!context || !context.trim()) && (!images || images.length === 0)) {
     throw new Error('请先输入真实素材、新闻要点或笔记');
+  }
+
+  const effectiveLink = (sourceLink || '').trim() || extractUrls(source)[0] || '';
+  let resolvedMediaAssets = Array.isArray(mediaAssets) ? mediaAssets : [];
+  if (resolvedMediaAssets.length === 0 && effectiveLink) {
+    const details = await fetchArticleDetails(effectiveLink).catch(() => ({ excerpt: '', media: [] }));
+    resolvedMediaAssets = [...(details.media || [])];
+    if (!resolvedMediaAssets.some((m) => m.url === effectiveLink)) {
+      const isX = /(?:x\.com|twitter\.com)\//i.test(effectiveLink);
+      resolvedMediaAssets.push({ type: isX ? 'x_post' : 'link', url: effectiveLink, label: isX ? '原 X 帖子' : '原文链接' });
+    }
   }
 
   const settings = await getSettings();
@@ -385,7 +399,7 @@ async function generatePostDraft({
   const messages = buildPostDraftMessages({
     source,
     postMode,
-    sourceLink,
+    sourceLink: effectiveLink,
     context,
     images: resolvedImages,
     continuation,
@@ -406,6 +420,7 @@ async function generatePostDraft({
     zhSummary: sanitizeMiddleDots(parsed?.zh_summary || ''),
     factCheckNote: sanitizeMiddleDots(parsed?.fact_check_note || ''),
     postMode,
+    mediaAssets: resolvedMediaAssets,
     visionFallback
   };
 }
@@ -481,8 +496,8 @@ async function draftFromSelectedTopic({
     throw new Error('请选择一个有效的推荐选题');
   }
 
-  const enrichedFacts = await enrichSelectedTopic(topic);
-  let sourceText = enrichedFacts;
+  const { enrichedText, mediaAssets } = await enrichSelectedTopicWithMedia(topic);
+  let sourceText = enrichedText;
   if (userAngle && userAngle.trim()) {
     sourceText += `\n\n[User's Own Angle / Extra Judgment to Incorporate]:\n${userAngle.trim()}`;
   }
@@ -494,8 +509,59 @@ async function draftFromSelectedTopic({
     source: sourceText,
     postMode: effectiveMode,
     sourceLink,
-    continuation
+    continuation,
+    mediaAssets
   });
+}
+
+function buildSafeDownloadFilename(url, type = 'image') {
+  let ext = type === 'video' ? 'mp4' : 'jpg';
+  try {
+    const pathname = new URL(url).pathname;
+    const match = pathname.match(/\.([a-z0-9]{2,5})$/i);
+    if (match) ext = match[1].toLowerCase();
+  } catch {
+    // keep default ext
+  }
+  const stamp = Date.now();
+  return `x-helper-media/x-media-${stamp}.${ext}`;
+}
+
+async function downloadMediaAsset(url, type = 'image') {
+  if (!url || !/^https?:\/\//i.test(url)) {
+    throw new Error('无效的媒体链接');
+  }
+  if (!chrome.downloads?.download) {
+    throw new Error('当前环境不支持下载 API，请刷新扩展权限后重试');
+  }
+  const filename = buildSafeDownloadFilename(url, type);
+  return new Promise((resolve, reject) => {
+    chrome.downloads.download({ url, filename, saveAs: false }, (downloadId) => {
+      if (chrome.runtime?.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve({ downloadId, filename });
+    });
+  });
+}
+
+async function fetchMediaAsDataUrlForAttach(url) {
+  if (!url || !/^https?:\/\//i.test(url)) {
+    throw new Error('无效的图片链接');
+  }
+  const dataUrl = await fetchImageAsDataUrl(url, 8000);
+  if (!dataUrl) {
+    throw new Error('图片拉取失败或超过 2MB 限制，请直接点击「下载」后手动上传');
+  }
+  const mimeMatch = dataUrl.match(/^data:([^;]+);base64,/);
+  const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+  const ext = mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+  return {
+    dataUrl,
+    mimeType,
+    filename: `x-media-${Date.now()}.${ext}`
+  };
 }
 
 async function handleMessage(message) {
@@ -564,6 +630,12 @@ async function handleMessage(message) {
       userAngle: message.userAngle || '',
       continuation: message.continuation || null
     });
+  }
+  if (message.type === 'DOWNLOAD_MEDIA') {
+    return downloadMediaAsset(message.url, message.mediaType || 'image');
+  }
+  if (message.type === 'FETCH_MEDIA_DATA_URL') {
+    return fetchMediaAsDataUrlForAttach(message.url);
   }
   if (message.type === 'TEST_CONNECTION') {
     const { content } = await callLLM([

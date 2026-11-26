@@ -110,6 +110,75 @@ describe('lib/radar.js', () => {
       assert.equal(enriched.includes('evil()'), false);
     });
   });
+
+  describe('extractMediaFromHtml & enrichSelectedTopicWithMedia', () => {
+    it('extracts og:image, video source, and relative article images while skipping icons/avatars', () => {
+      const html = `
+        <html>
+          <head>
+            <meta property="og:image" content="https://cdn.example.com/cover.jpg" />
+            <link rel="icon" href="/favicon.ico" />
+          </head>
+          <body>
+            <article>
+              <img src="/images/benchmark.png" width="800" />
+              <img src="/images/tiny-icon.png" width="32" />
+              <img src="https://cdn.example.com/avatar-user.jpg" />
+              <video><source src="/videos/demo.mp4" type="video/mp4" /></video>
+            </article>
+          </body>
+        </html>
+      `;
+      const media = radar.extractMediaFromHtml(html, 'https://blog.example.com/posts/ai-chip');
+      assert.equal(media.length, 3);
+      assert.deepEqual(media[0], { type: 'image', url: 'https://cdn.example.com/cover.jpg', label: '封面图' });
+      assert.deepEqual(media[1], { type: 'video', url: 'https://blog.example.com/videos/demo.mp4', label: '原文视频' });
+      assert.deepEqual(media[2], { type: 'image', url: 'https://blog.example.com/images/benchmark.png', label: '原文配图' });
+    });
+
+    it('collects Reddit preview image, article cover image, and links in enrichSelectedTopicWithMedia', async () => {
+      globalThis.fetch = async (url) => {
+        if (url.includes('reddit.com/r/OpenAI/comments/xyz.json')) {
+          return {
+            ok: true,
+            json: async () => [
+              {
+                data: {
+                  children: [
+                    {
+                      data: {
+                        preview: { images: [{ source: { url: 'https://i.redd.it/demo-chart.png' } }] }
+                      }
+                    }
+                  ]
+                }
+              },
+              { data: { children: [] } }
+            ]
+          };
+        }
+        if (url === 'https://news.example.com/story') {
+          return {
+            ok: true,
+            headers: { get: () => 'text/html' },
+            text: async () => '<meta property="og:image" content="https://news.example.com/hero.jpg"><p>Story text</p>'
+          };
+        }
+        return { ok: false };
+      };
+
+      const { mediaAssets } = await radar.enrichSelectedTopicWithMedia({
+        source: 'Reddit r/OpenAI',
+        titleEn: 'New benchmark chart',
+        url: 'https://news.example.com/story',
+        discussionUrl: 'https://www.reddit.com/r/OpenAI/comments/xyz'
+      });
+
+      assert.ok(mediaAssets.some((m) => m.type === 'image' && m.url === 'https://news.example.com/hero.jpg'));
+      assert.ok(mediaAssets.some((m) => m.type === 'image' && m.url === 'https://i.redd.it/demo-chart.png'));
+      assert.ok(mediaAssets.some((m) => m.type === 'link' && m.url === 'https://news.example.com/story'));
+    });
+  });
 });
 
 describe('background.js radar & topic drafting integration', () => {
@@ -273,5 +342,38 @@ describe('background.js radar & topic drafting integration', () => {
     assert.match(seenPrompt, /https:\/\/x\.com\/tech\/status\/999/);
     assert.match(draft.mainPost, /race to the bottom/);
     assert.match(draft.firstReply, /https:\/\/x\.com\/tech\/status\/999/);
+    assert.ok(draft.mediaAssets.some((m) => m.type === 'x_post' && m.url === 'https://x.com/tech/status/999'));
+  });
+
+  it('downloads media via DOWNLOAD_MEDIA and fetches base64 via FETCH_MEDIA_DATA_URL', async () => {
+    let downloadOpts = null;
+    globalThis.chrome.downloads = {
+      download: (opts, cb) => {
+        downloadOpts = opts;
+        cb(42);
+      }
+    };
+
+    const dlRes = await bg.handleMessage({
+      type: 'DOWNLOAD_MEDIA',
+      url: 'https://cdn.example.com/hero.png',
+      mediaType: 'image'
+    });
+    assert.equal(dlRes.downloadId, 42);
+    assert.match(dlRes.filename, /^x-helper-media\/x-media-\d+\.png$/);
+    assert.equal(downloadOpts.url, 'https://cdn.example.com/hero.png');
+
+    globalThis.fetch = async () => ({
+      ok: true,
+      headers: { get: () => 'image/png' },
+      arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer
+    });
+
+    const dataRes = await bg.handleMessage({
+      type: 'FETCH_MEDIA_DATA_URL',
+      url: 'https://cdn.example.com/hero.png'
+    });
+    assert.equal(dataRes.mimeType, 'image/png');
+    assert.match(dataRes.dataUrl, /^data:image\/png;base64,/);
   });
 });
