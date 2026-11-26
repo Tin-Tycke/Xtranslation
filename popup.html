@@ -186,6 +186,17 @@
     <textarea id="glossary" placeholder="例：&#10;小说工坊=NovelForge&#10;破防=tilted / hit a nerve&#10;Agent=Agent（保留英文）"></textarea>
   </div>
 
+  <div class="field-row">
+    <div class="field" style="flex:1.4;">
+      <label for="grokApiKey">xAI Grok Key（可选 · 实时搜 X）</label>
+      <input type="password" id="grokApiKey" placeholder="xai-... 留空用免费源" />
+    </div>
+    <div class="field" style="flex:1;">
+      <label for="grokModel">Grok 模型</label>
+      <input type="text" id="grokModel" placeholder="grok-3-mini" />
+    </div>
+  </div>
+
   <div class="toggle-row">
     <label for="autoTranslate">滚动时自动翻译英文推文</label>
     <input type="checkbox" id="autoTranslate" />

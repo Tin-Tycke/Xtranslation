@@ -1,12 +1,17 @@
 // Background service worker for X 地道双语助手
 
-if (typeof importScripts === 'function' && !globalThis.XTR_CORE) {
-  importScripts('lib/core.js');
+if (typeof importScripts === 'function') {
+  if (!globalThis.XTR_CORE) importScripts('lib/core.js');
+  if (!globalThis.XTR_RADAR) importScripts('lib/radar.js');
 }
 
 const CORE =
   globalThis.XTR_CORE ||
   (typeof require === 'function' ? require('./lib/core.js') : null);
+
+const RADAR =
+  globalThis.XTR_RADAR ||
+  (typeof require === 'function' ? require('./lib/radar.js') : null);
 
 const {
   DEFAULT_SETTINGS,
@@ -15,11 +20,18 @@ const {
   stripImagesFromMessages,
   hasImageContent,
   sanitizeMiddleDots,
+  normalizePostMode,
   buildTweetTranslationMessages,
   buildComposeDirectMessages,
   buildReplyCandidatesMessages,
   buildPostDraftMessages
 } = CORE;
+
+const {
+  fetchAllRadarSources,
+  buildTopicCurationMessages,
+  enrichSelectedTopic
+} = RADAR;
 
 // Persistent LRU cache for tweet translations (key -> { translation, takeaway, slangNotes })
 const CACHE_STORAGE_KEY = 'xtr_translation_cache_v2';
@@ -398,6 +410,94 @@ async function generatePostDraft({
   };
 }
 
+// Radar topics short-lived cache (15 minutes)
+const RADAR_CACHE_TTL_MS = 15 * 60 * 1000;
+const radarCache = new Map();
+
+async function fetchRadarTopics({ focus = '', force = false } = {}) {
+  const settings = await getSettings();
+  const focusKey = (focus || '').trim().toLowerCase();
+  const cacheKey = `${settings.grokApiKey ? 'g1' : 'g0'}:${focusKey}`;
+  const cached = radarCache.get(cacheKey);
+  if (!force && cached && Date.now() - cached.fetchedAt < RADAR_CACHE_TTL_MS) {
+    return cached;
+  }
+
+  const { items, sourceStats } = await fetchAllRadarSources({
+    grokApiKey: settings.grokApiKey,
+    grokModel: settings.grokModel || 'grok-3-mini',
+    customFocus: focus,
+    parseJsonSafely
+  });
+
+  if (!items || items.length === 0) {
+    throw new Error('未能从热点源拉取到内容，请检查网络连接后重试');
+  }
+
+  const messages = buildTopicCurationMessages(items, {
+    customFocus: focus,
+    glossary: settings.glossary
+  });
+
+  const { content: raw } = await callLLM(messages, { temperature: 0.35, jsonMode: true });
+  const parsed = parseJsonSafely(raw);
+  const rawTopics = Array.isArray(parsed?.topics) ? parsed.topics : [];
+  if (rawTopics.length === 0) {
+    throw new Error('未能从抓取素材中筛选出推荐选题，请重试');
+  }
+
+  const topics = rawTopics
+    .filter((t) => t && (t.title_zh || t.title_en))
+    .slice(0, 5)
+    .map((t, idx) => ({
+      id: t.id || `topic_${idx + 1}`,
+      source: sanitizeMiddleDots(t.source || 'Tech Radar'),
+      titleZh: sanitizeMiddleDots(t.title_zh || t.title_en || ''),
+      titleEn: sanitizeMiddleDots(t.title_en || ''),
+      summaryZh: sanitizeMiddleDots(t.summary_zh || ''),
+      angleZh: sanitizeMiddleDots(t.angle_zh || ''),
+      recommendedMode: normalizePostMode(t.recommended_mode),
+      url: String(t.url || '').trim(),
+      discussionUrl: String(t.discussion_url || '').trim(),
+      rawFacts: String(t.raw_facts || '').trim()
+    }));
+
+  const result = {
+    topics,
+    sourceStats,
+    fetchedAt: Date.now()
+  };
+  radarCache.set(cacheKey, result);
+  return result;
+}
+
+async function draftFromSelectedTopic({
+  topic,
+  postMode,
+  userAngle = '',
+  continuation = null
+}) {
+  if (!topic || (!topic.titleEn && !topic.titleZh && !topic.rawFacts)) {
+    throw new Error('请选择一个有效的推荐选题');
+  }
+
+  const enrichedFacts = await enrichSelectedTopic(topic);
+  let sourceText = enrichedFacts;
+  if (userAngle && userAngle.trim()) {
+    sourceText += `\n\n[User's Own Angle / Extra Judgment to Incorporate]:\n${userAngle.trim()}`;
+  }
+
+  const effectiveMode = normalizePostMode(postMode || topic.recommendedMode || 'news_post');
+  const sourceLink = topic.url || topic.discussionUrl || '';
+
+  return generatePostDraft({
+    source: sourceText,
+    postMode: effectiveMode,
+    sourceLink,
+    continuation
+  });
+}
+
 async function handleMessage(message) {
   if (message.type === 'TRANSLATE_TWEET') {
     return translateTweetToChinese(
@@ -451,6 +551,20 @@ async function handleMessage(message) {
       continuation: message.continuation || null
     });
   }
+  if (message.type === 'FETCH_RADAR_TOPICS') {
+    return fetchRadarTopics({
+      focus: message.focus || '',
+      force: Boolean(message.force)
+    });
+  }
+  if (message.type === 'DRAFT_FROM_TOPIC') {
+    return draftFromSelectedTopic({
+      topic: message.topic,
+      postMode: message.postMode,
+      userAngle: message.userAngle || '',
+      continuation: message.continuation || null
+    });
+  }
   if (message.type === 'TEST_CONNECTION') {
     const { content } = await callLLM([
       { role: 'system', content: 'Reply with just "OK".' },
@@ -486,9 +600,12 @@ if (typeof module === 'object' && module.exports) {
     translateChineseToAmericanEnglish,
     generateReplyCandidates,
     generatePostDraft,
+    fetchRadarTopics,
+    draftFromSelectedTopic,
     resolveImagesForLLM,
     _resetCacheForTest: () => {
       translationCache.clear();
+      radarCache.clear();
       cacheLoaded = false;
     }
   };

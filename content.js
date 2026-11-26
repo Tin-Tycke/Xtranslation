@@ -1171,6 +1171,34 @@
       const topRow = document.createElement('div');
       topRow.className = 'xtr-writer-top';
 
+      const tabGroup = document.createElement('div');
+      tabGroup.className = 'xtr-writer-tabs';
+
+      const radarTabBtn = document.createElement('button');
+      radarTabBtn.type = 'button';
+      radarTabBtn.className = 'xtr-tab-btn is-active';
+      radarTabBtn.textContent = '📡 找热点';
+
+      const manualTabBtn = document.createElement('button');
+      manualTabBtn.type = 'button';
+      manualTabBtn.className = 'xtr-tab-btn';
+      manualTabBtn.textContent = '✍️ 贴素材';
+
+      tabGroup.appendChild(radarTabBtn);
+      tabGroup.appendChild(manualTabBtn);
+
+      const closeWriterBtn = document.createElement('button');
+      closeWriterBtn.type = 'button';
+      closeWriterBtn.className = 'xtr-close-btn';
+      closeWriterBtn.textContent = '×';
+      closeWriterBtn.addEventListener('click', () => {
+        writerPanel.style.display = 'none';
+        writerToggleBtn.classList.remove('is-active');
+      });
+
+      topRow.appendChild(tabGroup);
+      topRow.appendChild(closeWriterBtn);
+
       const modesWrap = document.createElement('div');
       modesWrap.className = 'xtr-writer-modes';
       const modeBtns = new Map();
@@ -1191,17 +1219,41 @@
         modesWrap.appendChild(pill);
       });
 
-      const closeWriterBtn = document.createElement('button');
-      closeWriterBtn.type = 'button';
-      closeWriterBtn.className = 'xtr-close-btn';
-      closeWriterBtn.textContent = '×';
-      closeWriterBtn.addEventListener('click', () => {
-        writerPanel.style.display = 'none';
-        writerToggleBtn.classList.remove('is-active');
-      });
+      // --- Tab 1: Radar View ---
+      const radarView = document.createElement('div');
+      radarView.className = 'xtr-radar-view';
 
-      topRow.appendChild(modesWrap);
-      topRow.appendChild(closeWriterBtn);
+      const radarControls = document.createElement('div');
+      radarControls.className = 'xtr-writer-bottom';
+
+      const focusInput = document.createElement('input');
+      focusInput.type = 'text';
+      focusInput.className = 'xtr-writer-link';
+      focusInput.placeholder = '可选筛选方向（如 OpenAI / Agent / Apple，留空抓全网 AI 大事）';
+
+      const fetchRadarBtn = document.createElement('button');
+      fetchRadarBtn.type = 'button';
+      fetchRadarBtn.className = 'xtr-compose-btn';
+      fetchRadarBtn.textContent = '🔄 拉取热点';
+
+      radarControls.appendChild(focusInput);
+      radarControls.appendChild(fetchRadarBtn);
+
+      const radarMeta = document.createElement('div');
+      radarMeta.className = 'xtr-writer-note';
+      radarMeta.style.display = 'none';
+
+      const radarList = document.createElement('div');
+      radarList.className = 'xtr-radar-list';
+
+      radarView.appendChild(radarControls);
+      radarView.appendChild(radarMeta);
+      radarView.appendChild(radarList);
+
+      // --- Tab 2: Manual Source View ---
+      const manualView = document.createElement('div');
+      manualView.className = 'xtr-manual-view';
+      manualView.style.display = 'none';
 
       const sourceArea = document.createElement('textarea');
       sourceArea.className = 'xtr-writer-textarea';
@@ -1221,9 +1273,34 @@
       genPostBtn.className = 'xtr-compose-btn';
       genPostBtn.textContent = '⚡ 生成成稿';
 
+      bottomRow.appendChild(linkInput);
+      bottomRow.appendChild(genPostBtn);
+      manualView.appendChild(sourceArea);
+      manualView.appendChild(bottomRow);
+
       const resultWrap = document.createElement('div');
       resultWrap.className = 'xtr-writer-result';
       resultWrap.style.display = 'none';
+
+      const switchTab = (tab) => {
+        const isRadar = tab === 'radar';
+        radarTabBtn.classList.toggle('is-active', isRadar);
+        manualTabBtn.classList.toggle('is-active', !isRadar);
+        radarView.style.display = isRadar ? 'flex' : 'none';
+        manualView.style.display = isRadar ? 'none' : 'flex';
+      };
+
+      radarTabBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        switchTab('radar');
+      });
+
+      manualTabBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        switchTab('manual');
+      });
 
       sessionSyncListeners.add(() => {
         modeBtns.forEach((pill, val) => {
@@ -1344,6 +1421,146 @@
         resultWrap.style.display = 'flex';
       };
 
+      const renderRadarTopics = (data) => {
+        radarList.innerHTML = '';
+        const stats = (data?.sourceStats || [])
+          .filter((s) => s.count > 0)
+          .map((s) => `${s.source}(${s.count})`)
+          .join('  ');
+        if (stats) {
+          radarMeta.textContent = `已扫描热点源：${stats}`;
+          radarMeta.style.display = 'block';
+        }
+
+        const modeLabelMap = {
+          news_post: '推荐：新闻快评',
+          long_article: '推荐：深度长文',
+          method_guide: '推荐：方法实战'
+        };
+
+        (data?.topics || []).forEach((topic) => {
+          const card = document.createElement('div');
+          card.className = 'xtr-radar-card';
+
+          const meta = document.createElement('div');
+          meta.className = 'xtr-candidate-meta';
+
+          const leftMeta = document.createElement('div');
+          leftMeta.className = 'xtr-radar-badges';
+
+          const srcBadge = document.createElement('span');
+          srcBadge.className = 'xtr-candidate-style';
+          srcBadge.textContent = topic.source;
+
+          const modeBadge = document.createElement('span');
+          modeBadge.className = 'xtr-radar-mode-tag';
+          modeBadge.textContent = modeLabelMap[topic.recommendedMode] || '推荐：新闻快评';
+
+          leftMeta.appendChild(srcBadge);
+          leftMeta.appendChild(modeBadge);
+          meta.appendChild(leftMeta);
+
+          if (topic.url && /^https?:\/\//i.test(topic.url)) {
+            const extLink = document.createElement('a');
+            extLink.href = topic.url;
+            extLink.target = '_blank';
+            extLink.rel = 'noopener noreferrer';
+            extLink.className = 'xtr-radar-ext-link';
+            extLink.textContent = '原文 ↗';
+            meta.appendChild(extLink);
+          }
+
+          const titleEl = document.createElement('div');
+          titleEl.className = 'xtr-radar-title';
+          titleEl.textContent = topic.titleZh || topic.titleEn;
+
+          const sumEl = document.createElement('div');
+          sumEl.className = 'xtr-radar-summary';
+          sumEl.textContent = topic.summaryZh;
+
+          const angleEl = document.createElement('div');
+          angleEl.className = 'xtr-radar-angle';
+          angleEl.textContent = topic.angleZh ? `🔥 切入点：${topic.angleZh}` : '';
+
+          const actionRow = document.createElement('div');
+          actionRow.className = 'xtr-writer-bottom';
+
+          const angleInput = document.createElement('input');
+          angleInput.type = 'text';
+          angleInput.className = 'xtr-writer-link';
+          angleInput.placeholder = '可选：补一句你的判断或观点';
+
+          const draftBtn = document.createElement('button');
+          draftBtn.type = 'button';
+          draftBtn.className = 'xtr-mini-btn is-primary';
+          draftBtn.textContent = '⚡ 选这个补满';
+
+          draftBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            draftBtn.disabled = true;
+            draftBtn.textContent = '深挖写作中...';
+            try {
+              const draft = await sendMessageAsync({
+                type: 'DRAFT_FROM_TOPIC',
+                topic,
+                postMode: SESSION_STATE.lastPostMode || topic.recommendedMode,
+                userAngle: angleInput.value.trim(),
+                continuation: getActiveContinuation()
+              });
+              renderDraftResult(draft);
+            } catch (err) {
+              renderErrorMessage(resultWrap, '补满成稿失败', err);
+              resultWrap.style.display = 'flex';
+            } finally {
+              draftBtn.disabled = false;
+              draftBtn.textContent = '⚡ 选这个补满';
+            }
+          });
+
+          actionRow.appendChild(angleInput);
+          actionRow.appendChild(draftBtn);
+
+          card.appendChild(meta);
+          card.appendChild(titleEl);
+          if (topic.summaryZh) card.appendChild(sumEl);
+          if (topic.angleZh) card.appendChild(angleEl);
+          card.appendChild(actionRow);
+          radarList.appendChild(card);
+        });
+      };
+
+      const runRadarFetch = async (force = false) => {
+        fetchRadarBtn.disabled = true;
+        fetchRadarBtn.textContent = '扫描热点中...';
+        try {
+          const data = await sendMessageAsync({
+            type: 'FETCH_RADAR_TOPICS',
+            focus: focusInput.value.trim(),
+            force
+          });
+          renderRadarTopics(data);
+        } catch (err) {
+          renderErrorMessage(radarList, '热点拉取失败', err);
+        } finally {
+          fetchRadarBtn.disabled = false;
+          fetchRadarBtn.textContent = '🔄 刷新热点';
+        }
+      };
+
+      fetchRadarBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        runRadarFetch(true);
+      });
+
+      focusInput.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          runRadarFetch(true);
+        }
+      });
+
       genPostBtn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -1377,12 +1594,10 @@
         }
       });
 
-      bottomRow.appendChild(linkInput);
-      bottomRow.appendChild(genPostBtn);
-
       writerPanel.appendChild(topRow);
-      writerPanel.appendChild(sourceArea);
-      writerPanel.appendChild(bottomRow);
+      writerPanel.appendChild(modesWrap);
+      writerPanel.appendChild(radarView);
+      writerPanel.appendChild(manualView);
       writerPanel.appendChild(resultWrap);
     };
 

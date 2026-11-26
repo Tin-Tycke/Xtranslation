@@ -549,3 +549,97 @@
   opacity: 0.78;
   line-height: 1.45;
 }
+
+/* Topic Radar Tab & Cards */
+
+.xtr-writer-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.xtr-tab-btn {
+  appearance: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: inherit;
+  opacity: 0.72;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 3px 6px;
+  cursor: pointer;
+}
+
+.xtr-tab-btn.is-active {
+  opacity: 1;
+  color: rgb(29, 155, 240);
+  border-bottom-color: rgb(29, 155, 240);
+}
+
+.xtr-radar-view,
+.xtr-manual-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.xtr-radar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.xtr-radar-card {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(128, 128, 128, 0.28);
+  background: rgba(128, 128, 128, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.xtr-radar-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.xtr-radar-mode-tag {
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background: rgba(128, 128, 128, 0.16);
+  opacity: 0.85;
+}
+
+.xtr-radar-ext-link {
+  font-size: 11px;
+  color: rgb(29, 155, 240);
+  text-decoration: none;
+}
+
+.xtr-radar-ext-link:hover {
+  text-decoration: underline;
+}
+
+.xtr-radar-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.xtr-radar-summary {
+  font-size: 12px;
+  opacity: 0.82;
+  line-height: 1.45;
+}
+
+.xtr-radar-angle {
+  font-size: 11.5px;
+  color: #f59e0b;
+  line-height: 1.4;
+}

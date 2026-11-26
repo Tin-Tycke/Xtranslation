@@ -26,6 +26,8 @@ const els = {
   defaultTone: document.getElementById('defaultTone'),
   defaultLength: document.getElementById('defaultLength'),
   glossary: document.getElementById('glossary'),
+  grokApiKey: document.getElementById('grokApiKey'),
+  grokModel: document.getElementById('grokModel'),
   autoTranslate: document.getElementById('autoTranslate'),
   showSlangNotes: document.getElementById('showSlangNotes'),
   saveBtn: document.getElementById('saveBtn'),
@@ -55,6 +57,8 @@ function loadSettings() {
       defaultTone: 'mix',
       defaultLength: 'auto',
       glossary: '',
+      grokApiKey: '',
+      grokModel: 'grok-3-mini',
       autoTranslate: false,
       showSlangNotes: true
     },
@@ -68,6 +72,8 @@ function loadSettings() {
       els.defaultLength.value = items.defaultLength || 'auto';
       if (!els.defaultLength.value) els.defaultLength.value = 'auto';
       els.glossary.value = items.glossary || '';
+      els.grokApiKey.value = items.grokApiKey || '';
+      els.grokModel.value = items.grokModel || 'grok-3-mini';
       els.autoTranslate.checked = Boolean(items.autoTranslate);
       els.showSlangNotes.checked = Boolean(items.showSlangNotes);
     }
@@ -84,6 +90,8 @@ function saveSettings(silent = false) {
       defaultTone: els.defaultTone.value,
       defaultLength: els.defaultLength.value,
       glossary: els.glossary.value,
+      grokApiKey: els.grokApiKey.value.trim(),
+      grokModel: els.grokModel.value.trim() || 'grok-3-mini',
       autoTranslate: els.autoTranslate.checked,
       showSlangNotes: els.showSlangNotes.checked
     };
