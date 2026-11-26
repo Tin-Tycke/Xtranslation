@@ -18,6 +18,8 @@
 
   const SETTINGS = {
     targetRegion: 'en',
+    imageGenEnabled: false,
+    videoGenEnabled: false,
     autoTranslate: false,
     showSlangNotes: true,
     defaultTone: 'mix',
@@ -452,6 +454,12 @@
     }
     if (changes.defaultLength) {
       SETTINGS.defaultLength = normalizeLength(changes.defaultLength.newValue);
+    }
+    if (changes.imageGenEnabled) {
+      SETTINGS.imageGenEnabled = Boolean(changes.imageGenEnabled.newValue);
+    }
+    if (changes.videoGenEnabled) {
+      SETTINGS.videoGenEnabled = Boolean(changes.videoGenEnabled.newValue);
     }
   });
 
@@ -1511,36 +1519,46 @@
           resultWrap.appendChild(noteDiv);
         }
 
+        const attachImageDataUrlDirect = (dataUrl, mimeType, filename) => {
+          const base64 = dataUrl.split(',')[1] || '';
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          const file = new File([bytes], filename, { type: mimeType });
+          const dt = new DataTransfer();
+          dt.items.add(file);
+
+          const scope = textbox.closest('div[role="dialog"]') || root || document;
+          const fileInput = scope.querySelector('input[data-testid="fileInput"]');
+          if (fileInput) {
+            fileInput.files = dt.files;
+            fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+          } else {
+            textbox.focus();
+            const pasteEvent = new ClipboardEvent('paste', {
+              bubbles: true,
+              cancelable: true,
+              clipboardData: dt
+            });
+            textbox.dispatchEvent(pasteEvent);
+          }
+        };
+
         const attachImageToComposer = async (imgUrl, btnEl) => {
           btnEl.disabled = true;
           const prevLabel = btnEl.textContent;
           btnEl.textContent = '附图中...';
           try {
-            const { dataUrl, mimeType, filename } = await sendMessageAsync({
-              type: 'FETCH_MEDIA_DATA_URL',
-              url: imgUrl
-            });
-            const base64 = dataUrl.split(',')[1] || '';
-            const binary = atob(base64);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-            const file = new File([bytes], filename, { type: mimeType });
-            const dt = new DataTransfer();
-            dt.items.add(file);
-
-            const scope = textbox.closest('div[role="dialog"]') || root || document;
-            const fileInput = scope.querySelector('input[data-testid="fileInput"]');
-            if (fileInput) {
-              fileInput.files = dt.files;
-              fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+            if (imgUrl.startsWith('data:')) {
+              const mimeMatch = imgUrl.match(/^data:([^;]+);base64,/);
+              const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+              attachImageDataUrlDirect(imgUrl, mimeType, `x-ai-img-${Date.now()}.png`);
             } else {
-              textbox.focus();
-              const pasteEvent = new ClipboardEvent('paste', {
-                bubbles: true,
-                cancelable: true,
-                clipboardData: dt
+              const { dataUrl, mimeType, filename } = await sendMessageAsync({
+                type: 'FETCH_MEDIA_DATA_URL',
+                url: imgUrl
               });
-              textbox.dispatchEvent(pasteEvent);
+              attachImageDataUrlDirect(dataUrl, mimeType, filename);
             }
             btnEl.textContent = '✓ 已附';
             setTimeout(() => (btnEl.textContent = prevLabel), 1800);
@@ -1568,138 +1586,225 @@
           setTimeout(() => (statusSpan.textContent = ''), 1800);
         };
 
-        if (Array.isArray(draft.mediaAssets) && draft.mediaAssets.length > 0) {
+        const hasOptionalMediaGen = Boolean(SETTINGS.imageGenEnabled || SETTINGS.videoGenEnabled);
+        const mediaAssetsList = Array.isArray(draft.mediaAssets) ? [...draft.mediaAssets] : [];
+
+        if (mediaAssetsList.length > 0 || hasOptionalMediaGen) {
           const mediaStrip = document.createElement('div');
           mediaStrip.className = 'xtr-media-strip';
 
-          const mediaHeader = document.createElement('div');
+          const mediaHeaderRow = document.createElement('div');
+          mediaHeaderRow.className = 'xtr-candidate-meta';
+
+          const mediaHeader = document.createElement('span');
           mediaHeader.className = 'xtr-media-header';
-          mediaHeader.textContent = '🖼️ 原文配图 / 视频 / 结尾引用素材';
-          mediaStrip.appendChild(mediaHeader);
+          mediaHeader.textContent = '🖼️ 配图 / 视频 / 结尾素材';
+          mediaHeaderRow.appendChild(mediaHeader);
 
-          const imgAssets = draft.mediaAssets.filter((m) => m.type === 'image');
-          const otherAssets = draft.mediaAssets.filter((m) => m.type !== 'image');
+          const grid = document.createElement('div');
+          grid.className = 'xtr-media-grid';
 
-          if (imgAssets.length > 0) {
-            const grid = document.createElement('div');
-            grid.className = 'xtr-media-grid';
-            imgAssets.forEach((asset) => {
-              const card = document.createElement('div');
-              card.className = 'xtr-media-thumb-card';
+          const linksBox = document.createElement('div');
+          linksBox.style.display = 'flex';
+          linksBox.style.flexDirection = 'column';
+          linksBox.style.gap = '6px';
 
-              const img = document.createElement('img');
-              img.src = asset.url;
-              img.alt = asset.label || '原文配图';
-              img.className = 'xtr-media-thumb';
-              img.loading = 'lazy';
-              img.addEventListener('error', () => {
-                card.style.display = 'none';
-              });
+          const addImageCard = (asset) => {
+            const card = document.createElement('div');
+            card.className = 'xtr-media-thumb-card';
 
-              const btns = document.createElement('div');
-              btns.className = 'xtr-media-card-btns';
+            const img = document.createElement('img');
+            img.src = asset.url;
+            img.alt = asset.label || '配图';
+            img.className = 'xtr-media-thumb';
+            img.loading = 'lazy';
+            img.addEventListener('error', () => {
+              card.style.display = 'none';
+            });
 
-              const dlBtn = document.createElement('button');
-              dlBtn.type = 'button';
-              dlBtn.className = 'xtr-mini-btn';
-              dlBtn.textContent = '⬇️ 下载';
-              dlBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                dlBtn.disabled = true;
-                try {
+            const btns = document.createElement('div');
+            btns.className = 'xtr-media-card-btns';
+
+            const dlBtn = document.createElement('button');
+            dlBtn.type = 'button';
+            dlBtn.className = 'xtr-mini-btn';
+            dlBtn.textContent = '⬇️ 下载';
+            dlBtn.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              dlBtn.disabled = true;
+              try {
+                if (asset.url.startsWith('data:')) {
+                  const a = document.createElement('a');
+                  a.href = asset.url;
+                  a.download = `x-ai-image-${Date.now()}.png`;
+                  a.click();
+                } else {
                   await sendMessageAsync({ type: 'DOWNLOAD_MEDIA', url: asset.url, mediaType: 'image' });
-                  dlBtn.textContent = '✓ 已下';
-                  setTimeout(() => (dlBtn.textContent = '⬇️ 下载'), 1600);
+                }
+                dlBtn.textContent = '✓ 已下';
+                setTimeout(() => (dlBtn.textContent = '⬇️ 下载'), 1600);
+              } catch (err) {
+                statusSpan.textContent = `⚠ ${err.message}`;
+              } finally {
+                dlBtn.disabled = false;
+              }
+            });
+
+            const attachBtn = document.createElement('button');
+            attachBtn.type = 'button';
+            attachBtn.className = 'xtr-mini-btn is-primary';
+            attachBtn.textContent = '📎 附到发帖';
+            attachBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              attachImageToComposer(asset.url, attachBtn);
+            });
+
+            btns.appendChild(dlBtn);
+            btns.appendChild(attachBtn);
+            card.appendChild(img);
+            card.appendChild(btns);
+            grid.appendChild(card);
+          };
+
+          const addOtherRow = (asset) => {
+            const row = document.createElement('div');
+            row.className = 'xtr-media-link-row';
+
+            const info = document.createElement('span');
+            info.className = 'xtr-media-link-label';
+            const icon = asset.type === 'video' ? '🎬' : asset.type === 'x_post' ? '𝕏' : '🔗';
+            const shortUrl = asset.url.length > 44 ? asset.url.slice(0, 44) + '…' : asset.url;
+            info.textContent = `${icon} ${asset.label || '链接'} ${shortUrl}`;
+            info.title = asset.url;
+
+            const acts = document.createElement('div');
+            acts.className = 'xtr-candidate-actions';
+
+            if (asset.type === 'video') {
+              const dlVidBtn = document.createElement('button');
+              dlVidBtn.type = 'button';
+              dlVidBtn.className = 'xtr-mini-btn';
+              dlVidBtn.textContent = '⬇️ 下载';
+              dlVidBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                dlVidBtn.disabled = true;
+                try {
+                  await sendMessageAsync({ type: 'DOWNLOAD_MEDIA', url: asset.url, mediaType: 'video' });
+                  dlVidBtn.textContent = '✓ 已下';
+                  setTimeout(() => (dlVidBtn.textContent = '⬇️ 下载'), 1600);
                 } catch (err) {
                   statusSpan.textContent = `⚠ ${err.message}`;
                 } finally {
-                  dlBtn.disabled = false;
+                  dlVidBtn.disabled = false;
                 }
               });
+              acts.appendChild(dlVidBtn);
+            }
 
-              const attachBtn = document.createElement('button');
-              attachBtn.type = 'button';
-              attachBtn.className = 'xtr-mini-btn is-primary';
-              attachBtn.textContent = '📎 附到发帖';
-              attachBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                attachImageToComposer(asset.url, attachBtn);
-              });
-
-              btns.appendChild(dlBtn);
-              btns.appendChild(attachBtn);
-              card.appendChild(img);
-              card.appendChild(btns);
-              grid.appendChild(card);
+            const appendBtn = document.createElement('button');
+            appendBtn.type = 'button';
+            appendBtn.className = 'xtr-mini-btn is-primary';
+            appendBtn.textContent = '放文末';
+            appendBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              appendLinkToComposer(asset.url);
             });
-            mediaStrip.appendChild(grid);
+
+            const copyUrlBtn = document.createElement('button');
+            copyUrlBtn.type = 'button';
+            copyUrlBtn.className = 'xtr-mini-btn';
+            copyUrlBtn.textContent = '复制';
+            copyUrlBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              navigator.clipboard?.writeText(asset.url).then(() => {
+                copyUrlBtn.textContent = '已复制';
+                setTimeout(() => (copyUrlBtn.textContent = '复制'), 1400);
+              });
+            });
+
+            acts.appendChild(appendBtn);
+            acts.appendChild(copyUrlBtn);
+            row.appendChild(info);
+            row.appendChild(acts);
+            linksBox.appendChild(row);
+          };
+
+          if (hasOptionalMediaGen) {
+            const genActions = document.createElement('div');
+            genActions.className = 'xtr-candidate-actions';
+
+            if (SETTINGS.imageGenEnabled) {
+              const aiImgBtn = document.createElement('button');
+              aiImgBtn.type = 'button';
+              aiImgBtn.className = 'xtr-mini-btn';
+              aiImgBtn.textContent = '🎨 AI 配图';
+              aiImgBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                aiImgBtn.disabled = true;
+                aiImgBtn.textContent = '生图中...';
+                try {
+                  const res = await sendMessageAsync({
+                    type: 'GENERATE_AI_IMAGE',
+                    title: draft.title || '',
+                    mainPost: draft.mainPost || ''
+                  });
+                  const newImg = { type: 'image', url: res.dataUrl || res.url, label: 'AI 配图' };
+                  mediaAssetsList.unshift(newImg);
+                  addImageCard(newImg);
+                  statusSpan.textContent = '✓ AI 配图已生成';
+                  setTimeout(() => (statusSpan.textContent = ''), 2200);
+                } catch (err) {
+                  statusSpan.textContent = `⚠ ${err.message}`;
+                } finally {
+                  aiImgBtn.disabled = false;
+                  aiImgBtn.textContent = '🎨 AI 配图';
+                }
+              });
+              genActions.appendChild(aiImgBtn);
+            }
+
+            if (SETTINGS.videoGenEnabled) {
+              const aiVidBtn = document.createElement('button');
+              aiVidBtn.type = 'button';
+              aiVidBtn.className = 'xtr-mini-btn';
+              aiVidBtn.textContent = '🎬 AI 配视频';
+              aiVidBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                aiVidBtn.disabled = true;
+                aiVidBtn.textContent = '生视频中...';
+                try {
+                  const refImg = mediaAssetsList.find((m) => m.type === 'image' && /^https?:\/\//i.test(m.url));
+                  const res = await sendMessageAsync({
+                    type: 'GENERATE_AI_VIDEO',
+                    title: draft.title || '',
+                    mainPost: draft.mainPost || '',
+                    imageUrl: refImg?.url || ''
+                  });
+                  const newVid = { type: 'video', url: res.url, label: 'AI 配视频' };
+                  mediaAssetsList.unshift(newVid);
+                  addOtherRow(newVid);
+                  statusSpan.textContent = '✓ AI 配视频已生成';
+                  setTimeout(() => (statusSpan.textContent = ''), 2200);
+                } catch (err) {
+                  statusSpan.textContent = `⚠ ${err.message}`;
+                } finally {
+                  aiVidBtn.disabled = false;
+                  aiVidBtn.textContent = '🎬 AI 配视频';
+                }
+              });
+              genActions.appendChild(aiVidBtn);
+            }
+
+            mediaHeaderRow.appendChild(genActions);
           }
 
-          if (otherAssets.length > 0) {
-            otherAssets.forEach((asset) => {
-              const row = document.createElement('div');
-              row.className = 'xtr-media-link-row';
+          mediaStrip.appendChild(mediaHeaderRow);
 
-              const info = document.createElement('span');
-              info.className = 'xtr-media-link-label';
-              const icon = asset.type === 'video' ? '🎬' : asset.type === 'x_post' ? '𝕏' : '🔗';
-              const shortUrl = asset.url.length > 44 ? asset.url.slice(0, 44) + '…' : asset.url;
-              info.textContent = `${icon} ${asset.label || '链接'} ${shortUrl}`;
-              info.title = asset.url;
+          mediaAssetsList.filter((m) => m.type === 'image').forEach(addImageCard);
+          mediaAssetsList.filter((m) => m.type !== 'image').forEach(addOtherRow);
 
-              const acts = document.createElement('div');
-              acts.className = 'xtr-candidate-actions';
-
-              if (asset.type === 'video') {
-                const dlVidBtn = document.createElement('button');
-                dlVidBtn.type = 'button';
-                dlVidBtn.className = 'xtr-mini-btn';
-                dlVidBtn.textContent = '⬇️ 下载';
-                dlVidBtn.addEventListener('click', async (e) => {
-                  e.stopPropagation();
-                  dlVidBtn.disabled = true;
-                  try {
-                    await sendMessageAsync({ type: 'DOWNLOAD_MEDIA', url: asset.url, mediaType: 'video' });
-                    dlVidBtn.textContent = '✓ 已下';
-                    setTimeout(() => (dlVidBtn.textContent = '⬇️ 下载'), 1600);
-                  } catch (err) {
-                    statusSpan.textContent = `⚠ ${err.message}`;
-                  } finally {
-                    dlVidBtn.disabled = false;
-                  }
-                });
-                acts.appendChild(dlVidBtn);
-              }
-
-              const appendBtn = document.createElement('button');
-              appendBtn.type = 'button';
-              appendBtn.className = 'xtr-mini-btn is-primary';
-              appendBtn.textContent = '放文末';
-              appendBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                appendLinkToComposer(asset.url);
-              });
-
-              const copyUrlBtn = document.createElement('button');
-              copyUrlBtn.type = 'button';
-              copyUrlBtn.className = 'xtr-mini-btn';
-              copyUrlBtn.textContent = '复制';
-              copyUrlBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                navigator.clipboard?.writeText(asset.url).then(() => {
-                  copyUrlBtn.textContent = '已复制';
-                  setTimeout(() => (copyUrlBtn.textContent = '复制'), 1400);
-                });
-              });
-
-              acts.appendChild(appendBtn);
-              acts.appendChild(copyUrlBtn);
-              row.appendChild(info);
-              row.appendChild(acts);
-              mediaStrip.appendChild(row);
-            });
-          }
-
+          mediaStrip.appendChild(grid);
+          mediaStrip.appendChild(linksBox);
           resultWrap.appendChild(mediaStrip);
         }
 

@@ -83,6 +83,56 @@ describe('lib/radar.js', () => {
       assert.ok(htmlNames.includes('xAI'));
       assert.ok(htmlNames.includes('TLDR AI'));
     });
+
+    it('supports Tavily, Perplexity, and Exa optional search APIs', async () => {
+      globalThis.fetch = async (url) => {
+        if (url === 'https://api.tavily.com/search') {
+          return {
+            ok: true,
+            json: async () => ({
+              results: [{ title: 'Tavily AI News', url: 'https://example.com/tavily', content: 'Key fact.' }]
+            })
+          };
+        }
+        if (url === 'https://api.perplexity.ai/chat/completions') {
+          return {
+            ok: true,
+            json: async () => ({
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({
+                      items: [{ title: 'Perplexity AI Scoop', url: 'https://example.com/pplx', snippet: 'Scoop.' }]
+                    })
+                  }
+                }
+              ]
+            })
+          };
+        }
+        if (url === 'https://api.exa.ai/search') {
+          return {
+            ok: true,
+            json: async () => ({
+              results: [{ title: 'Exa Research Launch', url: 'https://example.com/exa', text: 'Details.' }]
+            })
+          };
+        }
+        return { ok: false };
+      };
+
+      const tItems = await radar.fetchTavilyItems({ apiKey: 'tvly-test', customFocus: 'OpenAI' });
+      assert.equal(tItems.length, 1);
+      assert.equal(tItems[0].source, 'Tavily Search');
+
+      const pItems = await radar.fetchPerplexityItems({ apiKey: 'pplx-test' });
+      assert.equal(pItems.length, 1);
+      assert.equal(pItems[0].source, 'Perplexity Sonar');
+
+      const eItems = await radar.fetchExaItems({ apiKey: 'exa-test' });
+      assert.equal(eItems.length, 1);
+      assert.equal(eItems[0].source, 'Exa Search');
+    });
   });
 
   describe('isTechAiRelevant & dedupeAndRankItems', () => {

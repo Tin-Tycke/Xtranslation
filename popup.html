@@ -125,6 +125,23 @@
       color: #71767b;
       line-height: 1.45;
     }
+    details.opt-box {
+      margin-bottom: 10px;
+      border: 1px solid #2f3336;
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #13161a;
+    }
+    details.opt-box summary {
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      color: #e7e9ea;
+      user-select: none;
+    }
+    details.opt-box .opt-body {
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -194,16 +211,83 @@
     <textarea id="glossary" placeholder="例：&#10;小说工坊=NovelForge&#10;破防=tilted / hit a nerve&#10;Agent=Agent（保留英文）"></textarea>
   </div>
 
-  <div class="field-row">
-    <div class="field" style="flex:1.4;">
-      <label for="grokApiKey">xAI Grok Key（可选 · 实时搜 X）</label>
-      <input type="password" id="grokApiKey" placeholder="xai-... 留空用免费源" />
+  <details class="opt-box">
+    <summary>🔍 可选：新闻搜索增强 API（默认免费源）</summary>
+    <div class="opt-body">
+      <div class="field">
+        <label for="searchProvider">搜索增强服务商</label>
+        <select id="searchProvider">
+          <option value="none">不使用（仅内置免费媒体 / 官博 / HN / Reddit）</option>
+          <option value="grok">xAI Grok（实时搜 X + Web）</option>
+          <option value="tavily">Tavily AI News Search</option>
+          <option value="perplexity">Perplexity Sonar（实时联网新闻）</option>
+          <option value="exa">Exa Neural Search</option>
+        </select>
+      </div>
+      <div class="field-row">
+        <div class="field" style="flex:1.4;">
+          <label for="searchApiKey">搜索 API Key</label>
+          <input type="password" id="searchApiKey" placeholder="留空仅走免费源" />
+        </div>
+        <div class="field" style="flex:1;">
+          <label for="searchModel">模型（可选）</label>
+          <input type="text" id="searchModel" placeholder="grok-3-mini / sonar" />
+        </div>
+      </div>
     </div>
-    <div class="field" style="flex:1;">
-      <label for="grokModel">Grok 模型</label>
-      <input type="text" id="grokModel" placeholder="grok-3-mini" />
+  </details>
+
+  <details class="opt-box">
+    <summary>🎨 🎬 可选：AI 生图 / 生视频协作</summary>
+    <div class="opt-body">
+      <div class="toggle-row" style="border-top:none;padding-top:0;">
+        <label for="imageGenEnabled">启用 AI 生图协作（成稿可一键配图）</label>
+        <input type="checkbox" id="imageGenEnabled" />
+      </div>
+      <div class="field">
+        <label for="imageGenProvider">生图服务商预设</label>
+        <select id="imageGenProvider">
+          <option value="openai">OpenAI (gpt-image-1 / dall-e-3)</option>
+          <option value="grok">xAI Grok Imagine (grok-2-image)</option>
+          <option value="siliconflow">SiliconFlow (FLUX.1-schnell)</option>
+          <option value="custom">自定义 OpenAI 兼容生图端点</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="imageGenBaseUrl">生图 API URL</label>
+        <input type="text" id="imageGenBaseUrl" placeholder="https://api.openai.com/v1/images/generations" />
+      </div>
+      <div class="field-row">
+        <div class="field" style="flex:1.3;">
+          <label for="imageGenApiKey">生图 API Key</label>
+          <input type="password" id="imageGenApiKey" placeholder="sk-..." />
+        </div>
+        <div class="field" style="flex:1;">
+          <label for="imageGenModel">生图模型</label>
+          <input type="text" id="imageGenModel" placeholder="gpt-image-1" />
+        </div>
+      </div>
+
+      <div class="toggle-row">
+        <label for="videoGenEnabled">启用 AI 生视频协作（图文联动）</label>
+        <input type="checkbox" id="videoGenEnabled" />
+      </div>
+      <div class="field">
+        <label for="videoGenBaseUrl">生视频 API URL（支持同步或任务轮询端点）</label>
+        <input type="text" id="videoGenBaseUrl" placeholder="https://.../v1/videos/generations" />
+      </div>
+      <div class="field-row">
+        <div class="field" style="flex:1.3;">
+          <label for="videoGenApiKey">生视频 API Key</label>
+          <input type="password" id="videoGenApiKey" placeholder="API Key" />
+        </div>
+        <div class="field" style="flex:1;">
+          <label for="videoGenModel">生视频模型</label>
+          <input type="text" id="videoGenModel" placeholder="如 kling / veo / runway" />
+        </div>
+      </div>
     </div>
-  </div>
+  </details>
 
   <div class="toggle-row" id="autoTranslateRow">
     <label for="autoTranslate">滚动时自动翻译英文推文</label>

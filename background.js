@@ -3,6 +3,7 @@
 if (typeof importScripts === 'function') {
   if (!globalThis.XTR_CORE) importScripts('lib/core.js');
   if (!globalThis.XTR_RADAR) importScripts('lib/radar.js');
+  if (!globalThis.XTR_MEDIA_GEN) importScripts('lib/media_gen.js');
 }
 
 const CORE =
@@ -12,6 +13,10 @@ const CORE =
 const RADAR =
   globalThis.XTR_RADAR ||
   (typeof require === 'function' ? require('./lib/radar.js') : null);
+
+const MEDIA_GEN =
+  globalThis.XTR_MEDIA_GEN ||
+  (typeof require === 'function' ? require('./lib/media_gen.js') : null);
 
 const {
   DEFAULT_SETTINGS,
@@ -442,13 +447,21 @@ async function fetchRadarTopics({ focus = '', force = false } = {}) {
   const settings = await getSettings();
   const region = normalizeRegion(settings.targetRegion);
   const focusKey = (focus || '').trim().toLowerCase();
-  const cacheKey = `${region}:${settings.grokApiKey ? 'g1' : 'g0'}:${focusKey}`;
+  const sp = settings.searchProvider && settings.searchProvider !== 'none'
+    ? settings.searchProvider
+    : settings.grokApiKey
+      ? 'grok'
+      : 'none';
+  const cacheKey = `${region}:${sp}:${focusKey}`;
   const cached = radarCache.get(cacheKey);
   if (!force && cached && Date.now() - cached.fetchedAt < RADAR_CACHE_TTL_MS) {
     return cached;
   }
 
   const { items, sourceStats } = await fetchAllRadarSources({
+    searchProvider: settings.searchProvider,
+    searchApiKey: settings.searchApiKey,
+    searchModel: settings.searchModel,
     grokApiKey: settings.grokApiKey,
     grokModel: settings.grokModel || 'grok-3-mini',
     customFocus: focus,
@@ -575,6 +588,37 @@ async function fetchMediaAsDataUrlForAttach(url) {
   };
 }
 
+async function generateAiImageForDraft({ title = '', mainPost = '' }) {
+  const settings = await getSettings();
+  if (!settings.imageGenEnabled) {
+    throw new Error('请先在插件设置中开启「AI 生图协作」');
+  }
+  const promptMsgs = MEDIA_GEN.buildVisualPromptMessages({ title, mainPost, kind: 'image' });
+  const { content: visualPrompt } = await callLLM(promptMsgs, { temperature: 0.6, jsonMode: false });
+  return MEDIA_GEN.generateImageFromProvider({
+    baseUrl: settings.imageGenBaseUrl,
+    apiKey: settings.imageGenApiKey,
+    model: settings.imageGenModel,
+    prompt: visualPrompt
+  });
+}
+
+async function generateAiVideoForDraft({ title = '', mainPost = '', imageUrl = '' }) {
+  const settings = await getSettings();
+  if (!settings.videoGenEnabled) {
+    throw new Error('请先在插件设置中开启「AI 生视频协作」');
+  }
+  const promptMsgs = MEDIA_GEN.buildVisualPromptMessages({ title, mainPost, kind: 'video' });
+  const { content: motionPrompt } = await callLLM(promptMsgs, { temperature: 0.6, jsonMode: false });
+  return MEDIA_GEN.generateVideoFromProvider({
+    baseUrl: settings.videoGenBaseUrl,
+    apiKey: settings.videoGenApiKey,
+    model: settings.videoGenModel,
+    prompt: motionPrompt,
+    imageUrl
+  });
+}
+
 async function handleMessage(message) {
   if (message.type === 'TRANSLATE_TWEET') {
     return translateTweetToChinese(
@@ -647,6 +691,19 @@ async function handleMessage(message) {
   }
   if (message.type === 'FETCH_MEDIA_DATA_URL') {
     return fetchMediaAsDataUrlForAttach(message.url);
+  }
+  if (message.type === 'GENERATE_AI_IMAGE') {
+    return generateAiImageForDraft({
+      title: message.title || '',
+      mainPost: message.mainPost || ''
+    });
+  }
+  if (message.type === 'GENERATE_AI_VIDEO') {
+    return generateAiVideoForDraft({
+      title: message.title || '',
+      mainPost: message.mainPost || '',
+      imageUrl: message.imageUrl || ''
+    });
   }
   if (message.type === 'TEST_CONNECTION') {
     const { content } = await callLLM([

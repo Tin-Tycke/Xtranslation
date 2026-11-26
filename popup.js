@@ -17,6 +17,21 @@ const PRESETS = {
   }
 };
 
+const IMAGE_GEN_PRESETS = {
+  openai: {
+    baseUrl: 'https://api.openai.com/v1/images/generations',
+    model: 'gpt-image-1'
+  },
+  grok: {
+    baseUrl: 'https://api.x.ai/v1/images/generations',
+    model: 'grok-2-image'
+  },
+  siliconflow: {
+    baseUrl: 'https://api.siliconflow.cn/v1/images/generations',
+    model: 'black-forest-labs/FLUX.1-schnell'
+  }
+};
+
 const els = {
   targetRegion: document.getElementById('targetRegion'),
   autoTranslateRow: document.getElementById('autoTranslateRow'),
@@ -29,8 +44,18 @@ const els = {
   defaultTone: document.getElementById('defaultTone'),
   defaultLength: document.getElementById('defaultLength'),
   glossary: document.getElementById('glossary'),
-  grokApiKey: document.getElementById('grokApiKey'),
-  grokModel: document.getElementById('grokModel'),
+  searchProvider: document.getElementById('searchProvider'),
+  searchApiKey: document.getElementById('searchApiKey'),
+  searchModel: document.getElementById('searchModel'),
+  imageGenEnabled: document.getElementById('imageGenEnabled'),
+  imageGenProvider: document.getElementById('imageGenProvider'),
+  imageGenBaseUrl: document.getElementById('imageGenBaseUrl'),
+  imageGenApiKey: document.getElementById('imageGenApiKey'),
+  imageGenModel: document.getElementById('imageGenModel'),
+  videoGenEnabled: document.getElementById('videoGenEnabled'),
+  videoGenBaseUrl: document.getElementById('videoGenBaseUrl'),
+  videoGenApiKey: document.getElementById('videoGenApiKey'),
+  videoGenModel: document.getElementById('videoGenModel'),
   autoTranslate: document.getElementById('autoTranslate'),
   showSlangNotes: document.getElementById('showSlangNotes'),
   saveBtn: document.getElementById('saveBtn'),
@@ -71,8 +96,20 @@ function loadSettings() {
       defaultTone: 'mix',
       defaultLength: 'auto',
       glossary: '',
+      searchProvider: 'none',
+      searchApiKey: '',
+      searchModel: '',
       grokApiKey: '',
       grokModel: 'grok-3-mini',
+      imageGenEnabled: false,
+      imageGenProvider: 'openai',
+      imageGenBaseUrl: 'https://api.openai.com/v1/images/generations',
+      imageGenApiKey: '',
+      imageGenModel: 'gpt-image-1',
+      videoGenEnabled: false,
+      videoGenBaseUrl: '',
+      videoGenApiKey: '',
+      videoGenModel: '',
       autoTranslate: false,
       showSlangNotes: true
     },
@@ -87,8 +124,23 @@ function loadSettings() {
       els.defaultLength.value = items.defaultLength || 'auto';
       if (!els.defaultLength.value) els.defaultLength.value = 'auto';
       els.glossary.value = items.glossary || '';
-      els.grokApiKey.value = items.grokApiKey || '';
-      els.grokModel.value = items.grokModel || 'grok-3-mini';
+      const sp = items.searchProvider && items.searchProvider !== 'none'
+        ? items.searchProvider
+        : items.grokApiKey
+          ? 'grok'
+          : 'none';
+      els.searchProvider.value = sp;
+      els.searchApiKey.value = items.searchApiKey || (sp === 'grok' ? items.grokApiKey : '') || '';
+      els.searchModel.value = items.searchModel || (sp === 'grok' ? items.grokModel : '') || '';
+      els.imageGenEnabled.checked = Boolean(items.imageGenEnabled);
+      els.imageGenProvider.value = items.imageGenProvider || 'openai';
+      els.imageGenBaseUrl.value = items.imageGenBaseUrl || 'https://api.openai.com/v1/images/generations';
+      els.imageGenApiKey.value = items.imageGenApiKey || '';
+      els.imageGenModel.value = items.imageGenModel || 'gpt-image-1';
+      els.videoGenEnabled.checked = Boolean(items.videoGenEnabled);
+      els.videoGenBaseUrl.value = items.videoGenBaseUrl || '';
+      els.videoGenApiKey.value = items.videoGenApiKey || '';
+      els.videoGenModel.value = items.videoGenModel || '';
       els.autoTranslate.checked = Boolean(items.autoTranslate);
       els.showSlangNotes.checked = Boolean(items.showSlangNotes);
       syncRegionUI();
@@ -98,6 +150,9 @@ function loadSettings() {
 
 function saveSettings(silent = false) {
   return new Promise((resolve) => {
+    const sp = els.searchProvider.value || 'none';
+    const sKey = els.searchApiKey.value.trim();
+    const sModel = els.searchModel.value.trim();
     const data = {
       targetRegion: els.targetRegion.value === 'zh' ? 'zh' : 'en',
       provider: els.provider.value,
@@ -107,8 +162,20 @@ function saveSettings(silent = false) {
       defaultTone: els.defaultTone.value,
       defaultLength: els.defaultLength.value,
       glossary: els.glossary.value,
-      grokApiKey: els.grokApiKey.value.trim(),
-      grokModel: els.grokModel.value.trim() || 'grok-3-mini',
+      searchProvider: sp,
+      searchApiKey: sKey,
+      searchModel: sModel,
+      grokApiKey: sp === 'grok' ? sKey : '',
+      grokModel: sp === 'grok' ? sModel || 'grok-3-mini' : 'grok-3-mini',
+      imageGenEnabled: els.imageGenEnabled.checked,
+      imageGenProvider: els.imageGenProvider.value,
+      imageGenBaseUrl: els.imageGenBaseUrl.value.trim(),
+      imageGenApiKey: els.imageGenApiKey.value.trim(),
+      imageGenModel: els.imageGenModel.value.trim(),
+      videoGenEnabled: els.videoGenEnabled.checked,
+      videoGenBaseUrl: els.videoGenBaseUrl.value.trim(),
+      videoGenApiKey: els.videoGenApiKey.value.trim(),
+      videoGenModel: els.videoGenModel.value.trim(),
       autoTranslate: els.autoTranslate.checked,
       showSlangNotes: els.showSlangNotes.checked
     };
@@ -120,6 +187,14 @@ function saveSettings(silent = false) {
     });
   });
 }
+
+els.imageGenProvider.addEventListener('change', () => {
+  const preset = IMAGE_GEN_PRESETS[els.imageGenProvider.value];
+  if (preset) {
+    els.imageGenBaseUrl.value = preset.baseUrl;
+    els.imageGenModel.value = preset.model;
+  }
+});
 
 els.provider.addEventListener('change', () => {
   const preset = PRESETS[els.provider.value];
