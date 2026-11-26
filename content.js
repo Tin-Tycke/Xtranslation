@@ -1377,9 +1377,6 @@
         mainLabel.textContent = draft.title
           ? `主贴 / 长文 (${charCount} 字符) ${draft.title}`
           : `主贴成稿 (${charCount} 字符)`;
-        if (draft.postMode === 'news_post' && charCount > 280) {
-          mainLabel.style.color = '#f4212e';
-        }
 
         const mainActions = document.createElement('div');
         mainActions.className = 'xtr-candidate-actions';
