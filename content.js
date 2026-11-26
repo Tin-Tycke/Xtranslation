@@ -911,6 +911,22 @@
 
   // --- Streamlined Compose / Reply Bar ---
 
+  function dispatchSyntheticPaste(textbox, text) {
+    try {
+      const dt = new DataTransfer();
+      dt.setData('text/plain', text);
+      const pasteEvent = new ClipboardEvent('paste', {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: dt
+      });
+      textbox.dispatchEvent(pasteEvent);
+      return dt;
+    } catch {
+      return null;
+    }
+  }
+
   function replaceEditorText(textbox, newText) {
     textbox.focus();
 
@@ -919,59 +935,48 @@
     range.selectNodeContents(textbox);
     selection.removeAllRanges();
     selection.addRange(range);
+    document.dispatchEvent(new Event('selectionchange'));
 
-    let dt = null;
-    let pasted = false;
-    try {
-      dt = new DataTransfer();
-      dt.setData('text/plain', newText);
-      const pasteEvent = new ClipboardEvent('paste', {
-        bubbles: true,
-        cancelable: true,
-        clipboardData: dt
-      });
-      textbox.dispatchEvent(pasteEvent);
-      pasted = true;
-    } catch {
-      pasted = false;
-    }
-
-    // Wait for Draft.js / Lexical reconciliation before checking with normalized whitespace
-    // (avoiding destructive execCommand on multi-paragraph text that already pasted cleanly)
+    // Wait briefly so Draft.js syncs its internal SelectionState to "select all" before pasting
     setTimeout(() => {
-      const current = textbox.innerText || '';
-      if (!pasted || shouldFallbackAfterPaste(current, newText)) {
-        textbox.focus();
-        const sel = window.getSelection();
-        const rng = document.createRange();
-        rng.selectNodeContents(textbox);
-        sel.removeAllRanges();
-        sel.addRange(rng);
+      textbox.focus();
+      const dt = dispatchSyntheticPaste(textbox, newText);
 
-        // Try native beforeinput first (Draft.js / Lexical friendly), fallback to execCommand only if still unchanged
-        let handled = false;
-        try {
-          if (dt && typeof InputEvent === 'function') {
-            const inputEv = new InputEvent('beforeinput', {
-              bubbles: true,
-              cancelable: true,
-              inputType: 'insertFromPaste',
-              data: newText,
-              dataTransfer: dt
-            });
-            textbox.dispatchEvent(inputEv);
-            handled = !shouldFallbackAfterPaste(textbox.innerText || '', newText);
+      // Only if editor is still completely empty, try Draft.js-friendly beforeinput (NEVER use execCommand insertText which corrupts Draft.js link entities & breaks Backspace)
+      setTimeout(() => {
+        if (!normalizeComparableText(textbox.innerText || '') && dt && typeof InputEvent === 'function') {
+          try {
+            textbox.dispatchEvent(
+              new InputEvent('beforeinput', {
+                bubbles: true,
+                cancelable: true,
+                inputType: 'insertFromPaste',
+                data: newText,
+                dataTransfer: dt
+              })
+            );
+          } catch {
+            // ignore
           }
-        } catch {
-          handled = false;
         }
+      }, 90);
+    }, 30);
+  }
 
-        if (!handled && shouldFallbackAfterPaste(textbox.innerText || '', newText)) {
-          document.execCommand('selectAll', false, null);
-          document.execCommand('insertText', false, newText);
-        }
-      }
-    }, 80);
+  function appendEditorText(textbox, textToAppend) {
+    textbox.focus();
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(textbox);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    document.dispatchEvent(new Event('selectionchange'));
+
+    setTimeout(() => {
+      textbox.focus();
+      dispatchSyntheticPaste(textbox, textToAppend);
+    }, 30);
   }
 
   function enhanceComposeBox(textbox) {
@@ -1514,8 +1519,11 @@
             setTimeout(() => (statusSpan.textContent = ''), 1800);
             return;
           }
-          const next = current ? `${current}\n\n${url}` : url;
-          replaceEditorText(textbox, next);
+          if (!current) {
+            replaceEditorText(textbox, url);
+          } else {
+            appendEditorText(textbox, `\n\n${url}`);
+          }
           statusSpan.textContent = '✓ 已追加到文末';
           setTimeout(() => (statusSpan.textContent = ''), 1800);
         };

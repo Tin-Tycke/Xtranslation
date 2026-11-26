@@ -177,5 +177,13 @@ describe('content.js helpers & continuation state', () => {
       assert.equal(content.shouldFallbackAfterPaste('', 'Line one.\n\nLine two.'), true);
       assert.equal(content.shouldFallbackAfterPaste('Old draft', 'New English post'), true);
     });
+
+    it('never uses destructive execCommand insertText in content.js', () => {
+      const fs = require('node:fs');
+      const path = require('node:path');
+      const src = fs.readFileSync(path.join(__dirname, '..', 'content.js'), 'utf8');
+      assert.equal(src.includes("execCommand('insertText'"), false);
+      assert.equal(src.includes('function appendEditorText('), true);
+    });
   });
 });
