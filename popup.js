@@ -298,10 +298,11 @@ function renderOpsStats(stats) {
   const inTok = formatCompactTokens(stats.promptTokensToday || 0);
   const outTok = formatCompactTokens(stats.completionTokensToday || 0);
   if (els.opsUsage) {
-    els.opsUsage.textContent = `今日调用：${calls} 次  Token：${totalTok}（入 ${inTok} / 出 ${outTok}）`;
+    els.opsUsage.textContent = `调用 ${calls} 次｜Token ${totalTok}`;
+    els.opsUsage.title = `输入 ${inTok} / 输出 ${outTok}`;
   }
   const pace = stats.pace || { level: 'safe', hourlyCount: 0, label: '节奏健康' };
-  els.opsHourly.textContent = `近1小时互动：${pace.hourlyCount} 次`;
+  els.opsHourly.textContent = `近1h ${pace.hourlyCount}次`;
   const icon = pace.level === 'cooldown' ? '🔴' : pace.level === 'caution' ? '🟡' : '🟢';
   els.opsPaceBadge.textContent = `${icon} ${pace.label}`;
   els.opsPaceBadge.className = `ops-pace ${pace.level === 'safe' ? '' : pace.level}`.trim();
@@ -321,6 +322,14 @@ els.opsResetBtn?.addEventListener('click', () => {
       renderOpsStats(res.data);
       showStatus('✓ 今日运营计数已重置');
     }
+  });
+});
+
+document.querySelectorAll('.tab-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const target = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('is-active', b === btn));
+    document.querySelectorAll('.tab-pane').forEach((p) => p.classList.toggle('is-active', p.id === `tab-${target}`));
   });
 });
 

@@ -9,159 +9,68 @@
       box-sizing: border-box;
     }
     body {
-      width: 340px;
+      width: 392px;
       margin: 0;
-      padding: 16px;
+      padding: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #0b0f14;
+      color: #e7e9ea;
+      font-size: 12.5px;
+      display: flex;
+      flex-direction: column;
+      max-height: 590px;
+    }
+    .popup-header {
+      padding: 12px 14px 10px;
       background: #0f1419;
-      color: #e7e9ea;
-      font-size: 13px;
+      border-bottom: 1px solid #22272e;
     }
-    h1 {
-      margin: 0 0 14px;
-      font-size: 16px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .field {
-      margin-bottom: 12px;
-    }
-    .field-row {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-    .field-row .field {
-      flex: 1;
-      margin-bottom: 0;
-    }
-    label {
-      display: block;
-      margin-bottom: 5px;
-      color: #8b98a5;
-      font-size: 12px;
-      font-weight: 500;
-    }
-    input[type="text"],
-    input[type="password"],
-    select,
-    textarea {
-      width: 100%;
-      padding: 8px 10px;
-      border-radius: 8px;
-      border: 1px solid #2f3336;
-      background: #16181c;
-      color: #e7e9ea;
-      font-size: 13px;
-      font-family: inherit;
-      outline: none;
-    }
-    textarea {
-      resize: vertical;
-      min-height: 58px;
-      font-size: 12px;
-      line-height: 1.45;
-    }
-    input:focus,
-    select:focus,
-    textarea:focus {
-      border-color: #1d9bf0;
-    }
-    .toggle-row {
+    .title-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 8px 0;
-      border-top: 1px solid #2f3336;
-    }
-    .toggle-row label {
-      margin: 0;
-      color: #e7e9ea;
-      font-size: 13px;
-    }
-    .actions {
-      display: flex;
-      gap: 8px;
-      margin-top: 14px;
-    }
-    button {
-      flex: 1;
-      padding: 9px 12px;
-      border: none;
-      border-radius: 9999px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .btn-primary {
-      background: #1d9bf0;
-      color: #ffffff;
-    }
-    .btn-primary:hover {
-      background: #1a8cd8;
-    }
-    .btn-secondary {
-      background: #272c30;
-      color: #e7e9ea;
-    }
-    .btn-secondary:hover {
-      background: #33393e;
-    }
-    .status {
-      margin-top: 10px;
-      min-height: 18px;
-      font-size: 12px;
-      color: #1d9bf0;
-      text-align: center;
-    }
-    .status.error {
-      color: #f4212e;
-    }
-    .hint {
-      margin-top: 10px;
-      font-size: 11px;
-      color: #71767b;
-      line-height: 1.45;
-    }
-    details.opt-box {
       margin-bottom: 10px;
-      border: 1px solid #2f3336;
-      border-radius: 8px;
-      padding: 8px 10px;
-      background: #13161a;
     }
-    details.opt-box summary {
-      cursor: pointer;
-      font-size: 12px;
+    .title-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14.5px;
+      font-weight: 700;
+    }
+    .ver-badge {
+      font-size: 10.5px;
       font-weight: 600;
-      color: #e7e9ea;
-      user-select: none;
-    }
-    details.opt-box .opt-body {
-      margin-top: 10px;
+      padding: 1px 6px;
+      border-radius: 9999px;
+      background: rgba(29, 155, 240, 0.16);
+      color: #1d9bf0;
     }
     .ops-card {
-      margin-bottom: 12px;
-      padding: 10px;
+      padding: 9px 10px;
       border-radius: 10px;
-      border: 1px solid #2f3336;
-      background: #16181c;
+      border: 1px solid #22272e;
+      background: #161b22;
     }
     .ops-top {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 8px;
-      font-size: 12px;
-      font-weight: 600;
+      margin-bottom: 7px;
+      font-size: 11.5px;
+      color: #9aa4b0;
+    }
+    .ops-top-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
     .ops-pace {
       font-size: 11px;
-      padding: 2px 7px;
+      font-weight: 600;
+      padding: 1px 7px;
       border-radius: 9999px;
-      background: rgba(0, 186, 124, 0.16);
+      background: rgba(0, 186, 124, 0.15);
       color: #00ba7c;
     }
     .ops-pace.caution {
@@ -172,43 +81,230 @@
       background: rgba(244, 33, 46, 0.16);
       color: #f4212e;
     }
+    .ops-reset-btn {
+      border: 1px solid #2f363f;
+      background: transparent;
+      color: #8b98a5;
+      font-size: 10.5px;
+      padding: 1px 7px;
+      border-radius: 9999px;
+      cursor: pointer;
+    }
+    .ops-reset-btn:hover {
+      color: #e7e9ea;
+      border-color: #4b5563;
+    }
     .ops-grid {
-      display: flex;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
       gap: 6px;
       text-align: center;
+      margin-bottom: 7px;
     }
     .ops-stat {
-      flex: 1;
-      padding: 6px 4px;
-      border-radius: 8px;
-      background: #0f1419;
+      padding: 5px 4px;
+      border-radius: 7px;
+      background: #0d1117;
+      border: 1px solid #1f242c;
     }
     .ops-num {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 700;
-      color: #e7e9ea;
+      color: #ffffff;
+      line-height: 1.2;
     }
     .ops-lbl {
       font-size: 10.5px;
-      color: #8b98a5;
+      color: #7d8792;
       margin-top: 2px;
     }
     .ops-foot {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-top: 7px;
       font-size: 11px;
       color: #8b98a5;
     }
-    .ops-reset-btn {
-      flex: 0 0 auto;
-      padding: 2px 8px;
-      font-size: 11px;
-      border-radius: 9999px;
-      background: #272c30;
+    /* Segmented Tabs */
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+      padding: 8px 14px 0;
+      background: #0b0f14;
+    }
+    .tab-btn {
+      border: 1px solid transparent;
+      background: #141920;
+      color: #8b98a5;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 7px 6px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .tab-btn:hover {
       color: #e7e9ea;
     }
+    .tab-btn.is-active {
+      background: rgba(29, 155, 240, 0.16);
+      border-color: rgba(29, 155, 240, 0.45);
+      color: #1d9bf0;
+    }
+    /* Scrollable Tab Content */
+    .tab-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 14px;
+    }
+    .tab-pane {
+      display: none;
+    }
+    .tab-pane.is-active {
+      display: block;
+    }
+    .card-group {
+      padding: 10px 11px;
+      border-radius: 10px;
+      border: 1px solid #22272e;
+      background: #12171e;
+      margin-bottom: 10px;
+    }
+    .card-group:last-child {
+      margin-bottom: 0;
+    }
+    .card-title {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #9aa4b0;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .field {
+      margin-bottom: 9px;
+    }
+    .field:last-child {
+      margin-bottom: 0;
+    }
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 9px;
+    }
+    .field-row:last-child {
+      margin-bottom: 0;
+    }
+    .field-row .field {
+      margin-bottom: 0;
+      min-width: 0;
+    }
+    label {
+      display: block;
+      margin-bottom: 4px;
+      color: #8b98a5;
+      font-size: 11.5px;
+      font-weight: 500;
+    }
+    input[type="text"],
+    input[type="password"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 7px 9px;
+      border-radius: 7px;
+      border: 1px solid #2a313a;
+      background: #0d1117;
+      color: #e7e9ea;
+      font-size: 12.5px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+    textarea {
+      resize: vertical;
+      min-height: 60px;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: #1d9bf0;
+    }
+    .key-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .key-row input {
+      flex: 1;
+      min-width: 0;
+    }
+    .btn-ghost {
+      border: 1px solid #2a313a;
+      background: #1a212a;
+      color: #cbd5e1;
+      padding: 7px 10px;
+      border-radius: 7px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-ghost:hover {
+      background: #232c37;
+    }
+    /* Modern Switch Row */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 0;
+      border-top: 1px solid #1f252d;
+    }
+    .toggle-row:first-of-type {
+      border-top: none;
+      padding-top: 2px;
+    }
+    .toggle-row label {
+      margin: 0;
+      color: #d6dce2;
+      font-size: 12.5px;
+      cursor: pointer;
+    }
+    input[type="checkbox"].switch {
+      appearance: none;
+      width: 34px;
+      height: 19px;
+      border-radius: 9999px;
+      background: #2a313a;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      flex-shrink: 0;
+    }
+    input[type="checkbox"].switch::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #ffffff;
+      transition: transform 0.15s ease;
+    }
+    input[type="checkbox"].switch:checked {
+      background: #1d9bf0;
+    }
+    input[type="checkbox"].switch:checked::after {
+      transform: translateX(15px);
+    }
+    /* Topic Chips */
     .topic-chips {
       display: flex;
       flex-wrap: wrap;
@@ -216,253 +312,325 @@
       margin-bottom: 8px;
     }
     .topic-chip {
-      flex: 0 0 auto;
-      padding: 3px 8px;
+      padding: 3px 9px;
       border-radius: 9999px;
-      border: 1px solid #2f3336;
-      background: #16181c;
+      border: 1px solid #2a313a;
+      background: #0d1117;
       color: #8b98a5;
-      font-size: 11px;
+      font-size: 11.5px;
       font-weight: 500;
       cursor: pointer;
+      transition: all 0.12s ease;
+    }
+    .topic-chip:hover {
+      border-color: #4b5563;
+      color: #e7e9ea;
     }
     .topic-chip.is-active {
       border-color: #1d9bf0;
       background: rgba(29, 155, 240, 0.18);
       color: #1d9bf0;
+      font-weight: 600;
+    }
+    /* Sticky Footer */
+    .popup-footer {
+      padding: 10px 14px 11px;
+      background: #0f1419;
+      border-top: 1px solid #22272e;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+    .actions button {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 9999px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-primary {
+      flex: 1.4;
+      background: #1d9bf0;
+      color: #ffffff;
+    }
+    .btn-primary:hover {
+      background: #1a8cd8;
+    }
+    .btn-secondary {
+      flex: 1;
+      background: #222831;
+      color: #d6dce2;
+    }
+    .btn-secondary:hover {
+      background: #2c3440;
+    }
+    .status {
+      margin-top: 7px;
+      min-height: 15px;
+      font-size: 11.5px;
+      color: #1d9bf0;
+      text-align: center;
+    }
+    .status.error {
+      color: #f4212e;
     }
   </style>
 </head>
 <body>
-  <h1>🌐 X 地道双语助手</h1>
-
-  <div class="ops-card">
-    <div class="ops-top">
-      <span>📊 今日运营面板</span>
+  <div class="popup-header">
+    <div class="title-row">
+      <div class="title-left">
+        <span>🌐 X 地道双语助手</span>
+        <span class="ver-badge">v1.2</span>
+      </div>
       <span class="ops-pace" id="opsPaceBadge">🟢 节奏健康</span>
     </div>
-    <div class="ops-grid">
-      <div class="ops-stat">
-        <div class="ops-num" id="opsReplies">0</div>
-        <div class="ops-lbl">今日回复</div>
-      </div>
-      <div class="ops-stat">
-        <div class="ops-num" id="opsQuotes">0</div>
-        <div class="ops-lbl">今日引评</div>
-      </div>
-      <div class="ops-stat">
-        <div class="ops-num" id="opsPosts">0</div>
-        <div class="ops-lbl">今日原创</div>
-      </div>
-    </div>
-    <div class="ops-foot">
-      <span id="opsUsage">今日调用：0 次  Token：0</span>
-    </div>
-    <div class="ops-foot">
-      <span id="opsHourly">近1小时互动：0 次</span>
-      <button type="button" class="ops-reset-btn" id="opsResetBtn">重置今日</button>
-    </div>
-  </div>
 
-  <div class="field">
-    <label for="targetRegion">面向地区 / 运营模式</label>
-    <select id="targetRegion">
-      <option value="en">英文区（英译中 + 英文回帖 / 写新闻长文）</option>
-      <option value="zh">中文区（关闭翻译 · 纯中文回帖 / 写新闻长文）</option>
-    </select>
-  </div>
-
-  <div class="field">
-    <label for="provider">模型服务商预设</label>
-    <select id="provider">
-      <option value="deepseek">DeepSeek (文本高性价比)</option>
-      <option value="openai">OpenAI (GPT-4o / 4o-mini · 支持识图)</option>
-      <option value="gemini">Google Gemini (支持识图)</option>
-      <option value="groq">Groq</option>
-      <option value="custom">自定义 (OpenAI 兼容 / Ollama)</option>
-    </select>
-  </div>
-
-  <div class="field">
-    <label for="apiBaseUrl">API Base URL</label>
-    <input type="text" id="apiBaseUrl" placeholder="https://api.deepseek.com/v1" />
-  </div>
-
-  <div class="field">
-    <label for="apiKey">API Key</label>
-    <div style="display:flex;gap:6px;align-items:center;">
-      <input type="password" id="apiKey" placeholder="sk-..." style="flex:1;" />
-      <button type="button" id="toggleKeyBtn" class="btn-secondary" style="flex:0 0 auto;padding:7px 10px;border-radius:8px;font-size:12px;">显示</button>
-    </div>
-  </div>
-
-  <div class="field">
-    <label for="model">模型名称 (Model)</label>
-    <input type="text" id="model" placeholder="deepseek-chat" />
-  </div>
-
-  <div class="field-row">
-    <div class="field">
-      <label for="defaultTone">默认回复立场</label>
-      <select id="defaultTone">
-        <option value="mix">智能混搭 (引战/另类/接梗)</option>
-        <option value="contrarian">挑刺引战 (Contrarian)</option>
-        <option value="alternative">另类视角 (Alternative)</option>
-        <option value="witty">幽默玩梗 (Witty)</option>
-        <option value="insight">深度补充 (Insight)</option>
-        <option value="casual">日常友好 (Casual)</option>
-      </select>
-    </div>
-    <div class="field">
-      <label for="defaultLength">默认回复篇幅</label>
-      <select id="defaultLength">
-        <option value="auto">长短适中</option>
-        <option value="short">短评 (1-2句)</option>
-        <option value="medium">中长评 (2-4句)</option>
-      </select>
-    </div>
-  </div>
-
-  <div class="field-row">
-    <div class="field">
-      <label for="personaRole">👤 个人 IP 身份定位</label>
-      <select id="personaRole">
-        <option value="custom">自由定制 / 不预设</option>
-        <option value="ai_builder">AI 独立开发者（重实操/反画大饼）</option>
-        <option value="tech_critic">科技大厂锐评（敢唱反调/盯博弈）</option>
-        <option value="indie_growth">出海增长操盘（盯流量/变现）</option>
-        <option value="meme_observer">泛科技梗图冲浪（轻松玩梗/反讽）</option>
-      </select>
-    </div>
-    <div class="field">
-      <label for="personaStyle">语言风格</label>
-      <select id="personaStyle">
-        <option value="default">默认口语网感</option>
-        <option value="sharp">犀利毒舌</option>
-        <option value="grounded">务实硬核</option>
-        <option value="humorous">幽默玩梗</option>
-        <option value="calm">克制冷峻</option>
-      </select>
-    </div>
-  </div>
-
-  <div class="field">
-    <label>主攻内容标签（可多选）</label>
-    <div class="topic-chips" id="personaTopicsWrap">
-      <button type="button" class="topic-chip" data-topic="AI 大模型">AI 大模型</button>
-      <button type="button" class="topic-chip" data-topic="大厂博弈">大厂博弈</button>
-      <button type="button" class="topic-chip" data-topic="独立开发">独立开发</button>
-      <button type="button" class="topic-chip" data-topic="开源工具">开源工具</button>
-      <button type="button" class="topic-chip" data-topic="出海变现">出海变现</button>
-      <button type="button" class="topic-chip" data-topic="梗图娱乐">梗图娱乐</button>
-      <button type="button" class="topic-chip" data-topic="商业观察">商业观察</button>
-    </div>
-    <textarea id="persona" placeholder="自定义个人 IP 补充（可选）：如你的真实经历、常用口吻、绝对不碰的雷区..."></textarea>
-  </div>
-
-  <div class="field">
-    <label for="glossary">自定义术语 / 固定译法（可选，每行一条）</label>
-    <textarea id="glossary" placeholder="例：&#10;小说工坊=NovelForge&#10;破防=tilted / hit a nerve&#10;Agent=Agent（保留英文）"></textarea>
-  </div>
-
-  <details class="opt-box">
-    <summary>🔍 可选：新闻搜索增强 API（默认免费源）</summary>
-    <div class="opt-body">
-      <div class="field">
-        <label for="searchProvider">搜索增强服务商</label>
-        <select id="searchProvider">
-          <option value="none">不使用（仅内置免费媒体 / 官博 / HN / Reddit）</option>
-          <option value="grok">xAI Grok（实时搜 X + Web）</option>
-          <option value="tavily">Tavily AI News Search</option>
-          <option value="perplexity">Perplexity Sonar（实时联网新闻）</option>
-          <option value="exa">Exa Neural Search</option>
-        </select>
-      </div>
-      <div class="field-row">
-        <div class="field" style="flex:1.4;">
-          <label for="searchApiKey">搜索 API Key</label>
-          <input type="password" id="searchApiKey" placeholder="留空仅走免费源" />
+    <div class="ops-card">
+      <div class="ops-grid">
+        <div class="ops-stat">
+          <div class="ops-num" id="opsReplies">0</div>
+          <div class="ops-lbl">今日回复</div>
         </div>
-        <div class="field" style="flex:1;">
-          <label for="searchModel">模型（可选）</label>
-          <input type="text" id="searchModel" placeholder="grok-3-mini / sonar" />
+        <div class="ops-stat">
+          <div class="ops-num" id="opsQuotes">0</div>
+          <div class="ops-lbl">今日引评</div>
+        </div>
+        <div class="ops-stat">
+          <div class="ops-num" id="opsPosts">0</div>
+          <div class="ops-lbl">今日原创</div>
+        </div>
+      </div>
+      <div class="ops-foot">
+        <span id="opsUsage">调用 0 次｜Token 0</span>
+        <div class="ops-top-right">
+          <span id="opsHourly">近1h 0次</span>
+          <button type="button" class="ops-reset-btn" id="opsResetBtn">重置</button>
         </div>
       </div>
     </div>
-  </details>
+  </div>
 
-  <details class="opt-box">
-    <summary>🎨 🎬 可选：AI 生图 / 生视频协作</summary>
-    <div class="opt-body">
-      <div class="toggle-row" style="border-top:none;padding-top:0;">
-        <label for="imageGenEnabled">启用 AI 生图协作（成稿可一键配图）</label>
-        <input type="checkbox" id="imageGenEnabled" />
+  <div class="tabs">
+    <button type="button" class="tab-btn is-active" data-tab="basic">⚙️ 基础与模型</button>
+    <button type="button" class="tab-btn" data-tab="persona">👤 个人 IP</button>
+    <button type="button" class="tab-btn" data-tab="extra">🔌 扩展 API</button>
+  </div>
+
+  <div class="tab-content">
+    <!-- Tab 1: Basic & Model -->
+    <div class="tab-pane is-active" id="tab-basic">
+      <div class="card-group">
+        <div class="field">
+          <label for="targetRegion">面向地区 / 运营模式</label>
+          <select id="targetRegion">
+            <option value="en">英文区（英译中 + 英文回帖 / 写新闻长文）</option>
+            <option value="zh">中文区（关闭翻译 + 纯中文回帖 / 写新闻长文）</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="defaultTone">默认回复立场</label>
+            <select id="defaultTone">
+              <option value="mix">智能混搭</option>
+              <option value="contrarian">挑刺引战</option>
+              <option value="alternative">另类视角</option>
+              <option value="witty">幽默玩梗</option>
+              <option value="insight">深度补充</option>
+              <option value="casual">日常友好</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="defaultLength">默认回复篇幅</label>
+            <select id="defaultLength">
+              <option value="auto">长短适中</option>
+              <option value="short">短评</option>
+              <option value="medium">中长评</option>
+            </select>
+          </div>
+        </div>
+        <div class="toggle-row" id="autoTranslateRow">
+          <label for="autoTranslate">滚动时自动翻译英文推文</label>
+          <input type="checkbox" class="switch" id="autoTranslate" />
+        </div>
+        <div class="toggle-row" id="showSlangNotesRow">
+          <label for="showSlangNotes">翻译附带俚语 / 梗解析</label>
+          <input type="checkbox" class="switch" id="showSlangNotes" checked />
+        </div>
       </div>
-      <div class="field">
-        <label for="imageGenProvider">生图服务商预设</label>
-        <select id="imageGenProvider">
-          <option value="openai">OpenAI (gpt-image-1 / dall-e-3)</option>
-          <option value="grok">xAI Grok Imagine (grok-2-image)</option>
-          <option value="siliconflow">SiliconFlow (FLUX.1-schnell)</option>
-          <option value="custom">自定义 OpenAI 兼容生图端点</option>
-        </select>
+
+      <div class="card-group">
+        <div class="card-title">主力大模型配置</div>
+        <div class="field-row">
+          <div class="field">
+            <label for="provider">服务商预设</label>
+            <select id="provider">
+              <option value="deepseek">DeepSeek</option>
+              <option value="openai">OpenAI（识图）</option>
+              <option value="gemini">Gemini（识图）</option>
+              <option value="groq">Groq</option>
+              <option value="custom">自定义 / Ollama</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="model">模型名称</label>
+            <input type="text" id="model" placeholder="deepseek-chat" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="apiBaseUrl">API Base URL</label>
+          <input type="text" id="apiBaseUrl" placeholder="https://api.deepseek.com/v1" />
+        </div>
+        <div class="field">
+          <label for="apiKey">API Key</label>
+          <div class="key-row">
+            <input type="password" id="apiKey" placeholder="sk-..." />
+            <button type="button" id="toggleKeyBtn" class="btn-ghost">显示</button>
+          </div>
+        </div>
       </div>
-      <div class="field">
-        <label for="imageGenBaseUrl">生图 API URL</label>
-        <input type="text" id="imageGenBaseUrl" placeholder="https://api.openai.com/v1/images/generations" />
+    </div>
+
+    <!-- Tab 2: Personal IP & Glossary -->
+    <div class="tab-pane" id="tab-persona">
+      <div class="card-group">
+        <div class="card-title">👤 个人 IP 设定（自动融入评 / 引 / 稿 / 写帖）</div>
+        <div class="field-row">
+          <div class="field">
+            <label for="personaRole">身份定位</label>
+            <select id="personaRole">
+              <option value="custom">自由定制</option>
+              <option value="ai_builder">AI 独立开发者</option>
+              <option value="tech_critic">科技大厂锐评</option>
+              <option value="indie_growth">出海增长操盘</option>
+              <option value="meme_observer">泛科技梗图冲浪</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="personaStyle">语言风格</label>
+            <select id="personaStyle">
+              <option value="default">默认口语网感</option>
+              <option value="sharp">犀利毒舌</option>
+              <option value="grounded">务实硬核</option>
+              <option value="humorous">幽默玩梗</option>
+              <option value="calm">克制冷峻</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>主攻内容标签（可多选）</label>
+          <div class="topic-chips" id="personaTopicsWrap">
+            <button type="button" class="topic-chip" data-topic="AI 大模型">AI 大模型</button>
+            <button type="button" class="topic-chip" data-topic="大厂博弈">大厂博弈</button>
+            <button type="button" class="topic-chip" data-topic="独立开发">独立开发</button>
+            <button type="button" class="topic-chip" data-topic="开源工具">开源工具</button>
+            <button type="button" class="topic-chip" data-topic="出海变现">出海变现</button>
+            <button type="button" class="topic-chip" data-topic="梗图娱乐">梗图娱乐</button>
+            <button type="button" class="topic-chip" data-topic="商业观察">商业观察</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="persona">自由定制补充（真实经历 / 常用口吻 / 雷区）</label>
+          <textarea id="persona" placeholder="例：重一线实战，反感大厂画大饼和纯套壳，不吹公关通稿..."></textarea>
+        </div>
       </div>
-      <div class="field-row">
-        <div class="field" style="flex:1.3;">
+
+      <div class="card-group">
+        <div class="field">
+          <label for="glossary">自定义术语 / 固定译法（可选，每行一条）</label>
+          <textarea id="glossary" placeholder="例：&#10;小说工坊=NovelForge&#10;Agent=Agent（保留英文）"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: Optional Search / Image / Video APIs -->
+    <div class="tab-pane" id="tab-extra">
+      <div class="card-group">
+        <div class="card-title">🔍 新闻搜索增强 API（可选 · 留空用免费源）</div>
+        <div class="field">
+          <label for="searchProvider">搜索服务商</label>
+          <select id="searchProvider">
+            <option value="none">不使用（仅内置免费媒体 / 官博 / HN / Reddit）</option>
+            <option value="grok">xAI Grok（实时搜 X + Web）</option>
+            <option value="tavily">Tavily AI News Search</option>
+            <option value="perplexity">Perplexity Sonar</option>
+            <option value="exa">Exa Neural Search</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="searchApiKey">搜索 API Key</label>
+            <input type="password" id="searchApiKey" placeholder="留空仅走免费源" />
+          </div>
+          <div class="field">
+            <label for="searchModel">模型（可选）</label>
+            <input type="text" id="searchModel" placeholder="grok-3-mini / sonar" />
+          </div>
+        </div>
+      </div>
+
+      <div class="card-group">
+        <div class="toggle-row">
+          <label for="imageGenEnabled">🎨 启用 AI 生图协作</label>
+          <input type="checkbox" class="switch" id="imageGenEnabled" />
+        </div>
+        <div class="field-row" style="margin-top:6px;">
+          <div class="field">
+            <label for="imageGenProvider">生图预设</label>
+            <select id="imageGenProvider">
+              <option value="openai">OpenAI</option>
+              <option value="grok">xAI Grok</option>
+              <option value="siliconflow">SiliconFlow Flux</option>
+              <option value="custom">自定义端点</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="imageGenModel">生图模型</label>
+            <input type="text" id="imageGenModel" placeholder="gpt-image-1" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="imageGenBaseUrl">生图 API URL</label>
+          <input type="text" id="imageGenBaseUrl" placeholder="https://api.openai.com/v1/images/generations" />
+        </div>
+        <div class="field">
           <label for="imageGenApiKey">生图 API Key</label>
           <input type="password" id="imageGenApiKey" placeholder="sk-..." />
         </div>
-        <div class="field" style="flex:1;">
-          <label for="imageGenModel">生图模型</label>
-          <input type="text" id="imageGenModel" placeholder="gpt-image-1" />
-        </div>
       </div>
 
-      <div class="toggle-row">
-        <label for="videoGenEnabled">启用 AI 生视频协作（图文联动）</label>
-        <input type="checkbox" id="videoGenEnabled" />
-      </div>
-      <div class="field">
-        <label for="videoGenBaseUrl">生视频 API URL（支持同步或任务轮询端点）</label>
-        <input type="text" id="videoGenBaseUrl" placeholder="https://.../v1/videos/generations" />
-      </div>
-      <div class="field-row">
-        <div class="field" style="flex:1.3;">
-          <label for="videoGenApiKey">生视频 API Key</label>
-          <input type="password" id="videoGenApiKey" placeholder="API Key" />
+      <div class="card-group">
+        <div class="toggle-row">
+          <label for="videoGenEnabled">🎬 启用 AI 生视频协作</label>
+          <input type="checkbox" class="switch" id="videoGenEnabled" />
         </div>
-        <div class="field" style="flex:1;">
-          <label for="videoGenModel">生视频模型</label>
-          <input type="text" id="videoGenModel" placeholder="如 kling / veo / runway" />
+        <div class="field" style="margin-top:6px;">
+          <label for="videoGenBaseUrl">生视频 API URL</label>
+          <input type="text" id="videoGenBaseUrl" placeholder="https://.../v1/videos/generations" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="videoGenApiKey">生视频 API Key</label>
+            <input type="password" id="videoGenApiKey" placeholder="API Key" />
+          </div>
+          <div class="field">
+            <label for="videoGenModel">生视频模型</label>
+            <input type="text" id="videoGenModel" placeholder="kling / veo / runway" />
+          </div>
         </div>
       </div>
     </div>
-  </details>
-
-  <div class="toggle-row" id="autoTranslateRow">
-    <label for="autoTranslate">滚动时自动翻译英文推文</label>
-    <input type="checkbox" id="autoTranslate" />
   </div>
 
-  <div class="toggle-row" id="showSlangNotesRow">
-    <label for="showSlangNotes">附带俚语/俗语/梗解析</label>
-    <input type="checkbox" id="showSlangNotes" checked />
-  </div>
-
-  <div class="actions">
-    <button type="button" class="btn-secondary" id="testBtn">测试连接</button>
-    <button type="button" class="btn-secondary" id="clearCacheBtn">清空缓存</button>
-    <button type="button" class="btn-primary" id="saveBtn">保存设置</button>
-  </div>
-
-  <div class="status" id="status"></div>
-
-  <div class="hint">
-    提示：支持自动识图（模型不支持时自动降级为文本+Alt）。在输入框按 <b>Alt + T</b> 可一键直译，选用候选后下次可勾选「🔗 延续上条」连贯续写。
+  <div class="popup-footer">
+    <div class="actions">
+      <button type="button" class="btn-secondary" id="testBtn">测试连接</button>
+      <button type="button" class="btn-secondary" id="clearCacheBtn">清缓存</button>
+      <button type="button" class="btn-primary" id="saveBtn">保存设置</button>
+    </div>
+    <div class="status" id="status"></div>
   </div>
 
   <script src="popup.js"></script>
