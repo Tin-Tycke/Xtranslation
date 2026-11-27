@@ -760,11 +760,12 @@ async function generateQuoteRemixCandidates({
 
 const draftAnglesCache = new Map();
 
-async function getDraftAnglesForTweet({ text = '', author = '', context = '', images = [] }) {
+async function getDraftAnglesForTweet({ text = '', author = '', context = '', images = [], purpose = 'draft' }) {
   if (!text || !text.trim()) {
     throw new Error('未检测到推文内容');
   }
-  const cacheKey = `${author}:${(context || '').slice(0, 80)}:${text}`;
+  const effectivePurpose = purpose === 'quote' ? 'quote' : 'draft';
+  const cacheKey = `${effectivePurpose}:${author}:${(context || '').slice(0, 80)}:${text}`;
   if (draftAnglesCache.has(cacheKey)) {
     return draftAnglesCache.get(cacheKey);
   }
@@ -775,7 +776,8 @@ async function getDraftAnglesForTweet({ text = '', author = '', context = '', im
     author,
     context,
     images: resolvedImages,
-    glossary: settings.glossary
+    glossary: settings.glossary,
+    purpose: effectivePurpose
   });
   const { content: raw } = await callLLM(messages, { temperature: 0.5, jsonMode: true });
   const parsed = parseJsonSafely(raw);
@@ -853,7 +855,8 @@ async function handleMessage(message) {
       text: message.text || '',
       author: message.author || '',
       context: message.context || '',
-      images: message.images || []
+      images: message.images || [],
+      purpose: message.purpose || 'draft'
     });
   }
   if (message.type === 'LOG_OPS_EVENT') {

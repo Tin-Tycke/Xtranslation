@@ -884,11 +884,12 @@
     return { trBtn, trBox };
   }
 
-  function buildGistAndAnglesBox(tweetTextEl, targetInput) {
+  function buildGistAndAnglesBox(tweetTextEl, targetInput, purpose = 'draft') {
+    const isQuote = purpose === 'quote';
     const gistBox = document.createElement('div');
     gistBox.className = 'xtr-takeaway-box';
     gistBox.style.marginBottom = '6px';
-    gistBox.textContent = '📌 原帖大意：正在提炼大意与观点方向...';
+    gistBox.textContent = isQuote ? '📌 原帖大意：正在提炼观点切入方向...' : '📌 原帖大意：正在提炼话题写稿方向...';
 
     const load = async () => {
       const article = tweetTextEl.closest('article[data-testid="tweet"]');
@@ -905,7 +906,8 @@
           text: tweetContent,
           author,
           context: extraCtx,
-          images
+          images,
+          purpose: isQuote ? 'quote' : 'draft'
         });
         gistBox.innerHTML = '';
         const gistLine = document.createElement('div');
@@ -919,7 +921,7 @@
             const angleItem = document.createElement('div');
             angleItem.className = 'xtr-draft-angle-item';
             angleItem.textContent = `${idx + 1}: ${angle}`;
-            angleItem.title = '点击填入作为观点方向';
+            angleItem.title = isQuote ? '点击填入作为针对原帖的引用观点' : '点击填入作为围绕该话题的独立写稿方向';
             angleItem.addEventListener('click', (ev) => {
               ev.stopPropagation();
               targetInput.value = angle;
@@ -1322,7 +1324,7 @@
         row.appendChild(genBtn);
         row.appendChild(continueChip);
         quoteRemixBox.appendChild(buildOpsMiniBanner());
-        quoteRemixBox.appendChild(buildGistAndAnglesBox(tweetTextEl, input));
+        quoteRemixBox.appendChild(buildGistAndAnglesBox(tweetTextEl, input, 'quote'));
         quoteRemixBox.appendChild(row);
         quoteRemixBox.appendChild(candPanel);
       }
@@ -1386,9 +1388,9 @@
           const tweetContent = extractTextWithEmojis(tweetTextEl);
           const { context: extraCtx, images } = extractTweetContextPayload(tweetTextEl, article);
           const tweetUrl = getTweetPermalink(article);
-          let source = author ? `${author}: ${tweetContent}` : tweetContent;
+          let source = `[Topic Inspiration / Reference Material — write a STANDALONE original post about this topic for readers who have NOT seen the original tweet; do NOT write as a reply to the author]:\n${author ? `${author}: ${tweetContent}` : tweetContent}`;
           if (extraCtx) source = `${extraCtx}\n---\n${source}`;
-          if (userAngle) source += `\n\n[我的切入点/观点]: ${userAngle}`;
+          if (userAngle) source += `\n\n[我的独立选题切入方向]: ${userAngle}`;
 
           genBtn.disabled = true;
           genBtn.textContent = '写作中...';
@@ -1506,7 +1508,7 @@
         row.appendChild(modeSel);
         row.appendChild(genBtn);
         draftIdeaBox.appendChild(buildOpsMiniBanner());
-        draftIdeaBox.appendChild(buildGistAndAnglesBox(tweetTextEl, input));
+        draftIdeaBox.appendChild(buildGistAndAnglesBox(tweetTextEl, input, 'draft'));
         draftIdeaBox.appendChild(row);
         draftIdeaBox.appendChild(outPanel);
       }
