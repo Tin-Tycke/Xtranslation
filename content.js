@@ -760,9 +760,52 @@
     }
   }
 
+  const opsBannerSyncListeners = new Set();
+  let latestOpsStats = null;
+
+  function formatOpsBannerText(stats) {
+    if (!stats) return '📊 今日 评 0  引 0  原创 0';
+    const pace = stats.pace || { level: 'safe', hourlyCount: 0, label: '节奏健康' };
+    const icon = pace.level === 'cooldown' ? '🔴' : pace.level === 'caution' ? '🟡' : '🟢';
+    return `📊 今日 评 ${stats.repliesToday || 0}  引 ${stats.quotesToday || 0}  原创 ${stats.postsToday || 0}  |  近1小时 ${pace.hourlyCount} 次  ${icon} ${pace.label}`;
+  }
+
+  function broadcastOpsStats(stats) {
+    if (!stats) return;
+    latestOpsStats = stats;
+    for (const fn of opsBannerSyncListeners) {
+      try {
+        fn(stats);
+      } catch {
+        // ignore detached banner
+      }
+    }
+  }
+
+  function refreshOpsStatsFromBg() {
+    sendMessageAsync({ type: 'GET_OPS_STATS' })
+      .then((res) => broadcastOpsStats(res))
+      .catch(() => {});
+  }
+
+  function buildOpsMiniBanner() {
+    const banner = document.createElement('div');
+    banner.className = 'xtr-ops-mini-banner';
+    const apply = (stats) => {
+      banner.textContent = formatOpsBannerText(stats);
+      const level = stats?.pace?.level || 'safe';
+      banner.classList.toggle('is-caution', level === 'caution');
+      banner.classList.toggle('is-cooldown', level === 'cooldown');
+    };
+    apply(latestOpsStats);
+    opsBannerSyncListeners.add(apply);
+    return banner;
+  }
+
   function logOpsEvent(kind, author = '', statusEl = null) {
     sendMessageAsync({ type: 'LOG_OPS_EVENT', kind, author })
       .then((res) => {
+        broadcastOpsStats(res);
         if (statusEl && res?.pace?.level === 'cooldown' && res.pace.warning) {
           statusEl.textContent = `⚠ ${res.pace.warning}`;
         }
@@ -985,9 +1028,11 @@
         row.appendChild(lengthSel);
         row.appendChild(genBtn);
         row.appendChild(continueChip);
+        quickReplyBox.appendChild(buildOpsMiniBanner());
         quickReplyBox.appendChild(row);
         quickReplyBox.appendChild(candPanel);
       }
+      refreshOpsStatsFromBg();
       quickReplyBox.style.display = 'block';
       quoteRemixBox.style.display = 'none';
       quickReplyBox.querySelector('.xtr-qr-input')?.focus();
@@ -1082,9 +1127,11 @@
         row.appendChild(lengthSel);
         row.appendChild(genBtn);
         row.appendChild(continueChip);
+        quoteRemixBox.appendChild(buildOpsMiniBanner());
         quoteRemixBox.appendChild(row);
         quoteRemixBox.appendChild(candPanel);
       }
+      refreshOpsStatsFromBg();
       quickReplyBox.style.display = 'none';
       quoteRemixBox.style.display = 'block';
       quoteRemixBox.querySelector('.xtr-qr-input')?.focus();

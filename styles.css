@@ -300,6 +300,28 @@
   background: rgba(128, 128, 128, 0.05);
 }
 
+.xtr-ops-mini-banner {
+  margin-bottom: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(128, 128, 128, 0.1);
+  font-size: 11px;
+  line-height: 1.4;
+  opacity: 0.88;
+}
+
+.xtr-ops-mini-banner.is-caution {
+  background: rgba(245, 158, 11, 0.14);
+  color: #f59e0b;
+  opacity: 1;
+}
+
+.xtr-ops-mini-banner.is-cooldown {
+  background: rgba(244, 33, 46, 0.14);
+  color: #f4212e;
+  opacity: 1;
+}
+
 .xtr-qr-row {
   display: flex;
   flex-wrap: wrap;
