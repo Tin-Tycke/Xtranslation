@@ -835,6 +835,55 @@
       .catch(() => {});
   }
 
+  function buildDraftTranslateControl(fullText, hostCard) {
+    if (!fullText || isMostlyChinese(fullText)) return null;
+    const trBtn = document.createElement('button');
+    trBtn.type = 'button';
+    trBtn.className = 'xtr-mini-btn';
+    trBtn.textContent = '译';
+    trBtn.title = '查看这篇英文草稿的中文对照翻译';
+
+    const trBox = document.createElement('div');
+    trBox.className = 'xtr-draft-zh-box';
+    trBox.style.display = 'none';
+    let loaded = false;
+
+    trBtn.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      if (loaded) {
+        const hidden = trBox.style.display === 'none';
+        trBox.style.display = hidden ? 'block' : 'none';
+        trBtn.textContent = hidden ? '收起译' : '译';
+        return;
+      }
+      trBtn.disabled = true;
+      trBtn.textContent = '译中...';
+      try {
+        const res = await sendMessageAsync({
+          type: 'TRANSLATE_TWEET',
+          text: fullText,
+          author: '',
+          context: '',
+          images: [],
+          force: false
+        });
+        trBox.textContent = res.translation || '';
+        trBox.style.display = 'block';
+        loaded = true;
+        trBtn.textContent = '收起译';
+        refreshOpsStatsFromBg();
+      } catch (err) {
+        trBox.textContent = `翻译失败: ${err.message}`;
+        trBox.style.display = 'block';
+        trBtn.textContent = '重试译';
+      } finally {
+        trBtn.disabled = false;
+      }
+    });
+
+    return { trBtn, trBox };
+  }
+
   function buildOpsMiniBanner() {
     const banner = document.createElement('div');
     banner.className = 'xtr-ops-mini-banner';
@@ -1356,6 +1405,8 @@
               }
             });
 
+            const trCtrl = buildDraftTranslateControl(fullText, card);
+            if (trCtrl) acts.appendChild(trCtrl.trBtn);
             acts.appendChild(copyBtn);
             acts.appendChild(saveBtn);
             meta.appendChild(titleLbl);
@@ -1374,6 +1425,7 @@
               card.appendChild(sum);
             }
             card.appendChild(bodyDiv);
+            if (trCtrl) card.appendChild(trCtrl.trBox);
             outPanel.appendChild(card);
             outPanel.style.display = 'flex';
           } catch (err) {
@@ -2210,6 +2262,10 @@
           mainActions.appendChild(saveBtn);
         }
 
+        const mainTrCtrl = buildDraftTranslateControl(fullText, mainBlock);
+        if (mainTrCtrl) {
+          mainActions.appendChild(mainTrCtrl.trBtn);
+        }
         mainActions.appendChild(copyMainBtn);
         mainActions.appendChild(fillMainBtn);
         mainMeta.appendChild(mainLabel);
@@ -2221,6 +2277,7 @@
 
         mainBlock.appendChild(mainMeta);
         mainBlock.appendChild(mainBody);
+        if (mainTrCtrl) mainBlock.appendChild(mainTrCtrl.trBox);
         resultWrap.appendChild(mainBlock);
 
         if (draft.firstReply) {
