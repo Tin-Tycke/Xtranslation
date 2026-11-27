@@ -884,6 +884,61 @@
     return { trBtn, trBox };
   }
 
+  function buildGistAndAnglesBox(tweetTextEl, targetInput) {
+    const gistBox = document.createElement('div');
+    gistBox.className = 'xtr-takeaway-box';
+    gistBox.style.marginBottom = '6px';
+    gistBox.textContent = '📌 原帖大意：正在提炼大意与观点方向...';
+
+    const load = async () => {
+      const article = tweetTextEl.closest('article[data-testid="tweet"]');
+      const author = getTweetAuthor(article);
+      const tweetContent = extractTextWithEmojis(tweetTextEl);
+      if (!tweetContent) {
+        gistBox.style.display = 'none';
+        return;
+      }
+      const { context: extraCtx, images } = extractTweetContextPayload(tweetTextEl, article);
+      try {
+        const data = await sendMessageAsync({
+          type: 'GET_DRAFT_ANGLES',
+          text: tweetContent,
+          author,
+          context: extraCtx,
+          images
+        });
+        gistBox.innerHTML = '';
+        const gistLine = document.createElement('div');
+        gistLine.textContent = `📌 原帖大意：${data.gist || tweetContent.slice(0, 80)}`;
+        gistBox.appendChild(gistLine);
+
+        if (Array.isArray(data.angles) && data.angles.length > 0) {
+          const anglesWrap = document.createElement('div');
+          anglesWrap.className = 'xtr-draft-angles';
+          data.angles.slice(0, 3).forEach((angle, idx) => {
+            const angleItem = document.createElement('div');
+            angleItem.className = 'xtr-draft-angle-item';
+            angleItem.textContent = `${idx + 1}: ${angle}`;
+            angleItem.title = '点击填入作为观点方向';
+            angleItem.addEventListener('click', (ev) => {
+              ev.stopPropagation();
+              targetInput.value = angle;
+              targetInput.focus();
+            });
+            anglesWrap.appendChild(angleItem);
+          });
+          gistBox.appendChild(anglesWrap);
+        }
+        refreshOpsStatsFromBg();
+      } catch {
+        gistBox.textContent = `📌 原帖大意：${tweetContent.slice(0, 100)}${tweetContent.length > 100 ? '…' : ''}`;
+      }
+    };
+
+    load();
+    return gistBox;
+  }
+
   function buildOpsMiniBanner() {
     const banner = document.createElement('div');
     banner.className = 'xtr-ops-mini-banner';
@@ -1267,6 +1322,7 @@
         row.appendChild(genBtn);
         row.appendChild(continueChip);
         quoteRemixBox.appendChild(buildOpsMiniBanner());
+        quoteRemixBox.appendChild(buildGistAndAnglesBox(tweetTextEl, input));
         quoteRemixBox.appendChild(row);
         quoteRemixBox.appendChild(candPanel);
       }
@@ -1446,64 +1502,13 @@
           }
         });
 
-        const gistBox = document.createElement('div');
-        gistBox.className = 'xtr-takeaway-box';
-        gistBox.style.marginBottom = '6px';
-        gistBox.textContent = '📌 原帖大意：正在提炼大意与写稿方向...';
-
-        const loadTweetGist = async () => {
-          const article = tweetTextEl.closest('article[data-testid="tweet"]');
-          const author = getTweetAuthor(article);
-          const tweetContent = extractTextWithEmojis(tweetTextEl);
-          if (!tweetContent) {
-            gistBox.style.display = 'none';
-            return;
-          }
-          const { context: extraCtx, images } = extractTweetContextPayload(tweetTextEl, article);
-          try {
-            const data = await sendMessageAsync({
-              type: 'GET_DRAFT_ANGLES',
-              text: tweetContent,
-              author,
-              context: extraCtx,
-              images
-            });
-            gistBox.innerHTML = '';
-            const gistLine = document.createElement('div');
-            gistLine.textContent = `📌 原帖大意：${data.gist || tweetContent.slice(0, 80)}`;
-            gistBox.appendChild(gistLine);
-
-            if (Array.isArray(data.angles) && data.angles.length > 0) {
-              const anglesWrap = document.createElement('div');
-              anglesWrap.className = 'xtr-draft-angles';
-              data.angles.slice(0, 3).forEach((angle, idx) => {
-                const angleItem = document.createElement('div');
-                angleItem.className = 'xtr-draft-angle-item';
-                angleItem.textContent = `${idx + 1}: ${angle}`;
-                angleItem.title = '点击填入作为写稿方向';
-                angleItem.addEventListener('click', (ev) => {
-                  ev.stopPropagation();
-                  input.value = angle;
-                  input.focus();
-                });
-                anglesWrap.appendChild(angleItem);
-              });
-              gistBox.appendChild(anglesWrap);
-            }
-            refreshOpsStatsFromBg();
-          } catch {
-            gistBox.textContent = `📌 原帖大意：${tweetContent.slice(0, 100)}${tweetContent.length > 100 ? '…' : ''}`;
-          }
-        };
-
         row.appendChild(input);
         row.appendChild(modeSel);
         row.appendChild(genBtn);
         draftIdeaBox.appendChild(buildOpsMiniBanner());
-        draftIdeaBox.appendChild(gistBox);
+        draftIdeaBox.appendChild(buildGistAndAnglesBox(tweetTextEl, input));
         draftIdeaBox.appendChild(row);
         draftIdeaBox.appendChild(outPanel);
-        loadTweetGist();
       }
       refreshOpsStatsFromBg();
       quickReplyBox.style.display = 'none';

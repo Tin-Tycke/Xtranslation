@@ -191,6 +191,8 @@ describe('content.js helpers & continuation state', () => {
       assert.equal(src.includes('controls.appendChild(btn);\n    controls.appendChild(draftIdeaBtn);'), true);
       assert.equal(src.includes('📌 原帖大意：'), true);
       assert.equal(src.includes('function buildDraftTranslateControl('), true);
+      assert.equal(src.includes('quoteRemixBox.appendChild(buildGistAndAnglesBox('), true);
+      assert.equal(src.includes('draftIdeaBox.appendChild(buildGistAndAnglesBox('), true);
       assert.equal(src.includes('xtr-writer-split'), true);
       assert.match(css, /\.xtr-candidates-row\s*\{[^}]*flex-direction:\s*column;/);
       assert.equal(
