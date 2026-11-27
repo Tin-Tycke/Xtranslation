@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "X 地道双语助手 (Slang & Context Translator)",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "深度解析 X (Twitter) 英文主贴图文观点与俚语，并在发帖或评论时结合上下文与上次选择生成真实、有锋芒的地道美式英语回应。",
   "permissions": [
     "storage",

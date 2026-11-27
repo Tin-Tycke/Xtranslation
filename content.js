@@ -760,6 +760,54 @@
     }
   }
 
+  function logOpsEvent(kind, author = '', statusEl = null) {
+    sendMessageAsync({ type: 'LOG_OPS_EVENT', kind, author })
+      .then((res) => {
+        if (statusEl && res?.pace?.level === 'cooldown' && res.pace.warning) {
+          statusEl.textContent = `⚠ ${res.pace.warning}`;
+        }
+      })
+      .catch(() => {});
+  }
+
+  function openQuoteAndFill(article, text) {
+    if (!article) return;
+    const retweetBtn =
+      article.querySelector('[data-testid="retweet"]') ||
+      article.querySelector('[data-testid="unretweet"]');
+    if (retweetBtn) {
+      retweetBtn.click();
+    }
+    let menuAttempts = 0;
+    const menuTimer = setInterval(() => {
+      menuAttempts++;
+      const quoteItem =
+        document.querySelector('a[href="/compose/post"][role="menuitem"]') ||
+        Array.from(document.querySelectorAll('div[role="menu"] [role="menuitem"]')).find((el) =>
+          /quote|引用/i.test(el.textContent || '')
+        );
+      if (quoteItem) {
+        clearInterval(menuTimer);
+        quoteItem.click();
+        let boxAttempts = 0;
+        const boxTimer = setInterval(() => {
+          boxAttempts++;
+          const dialogBox = document.querySelector(
+            'div[role="dialog"] div[data-testid^="tweetTextarea_"][contenteditable="true"]'
+          );
+          if (dialogBox) {
+            clearInterval(boxTimer);
+            setTimeout(() => replaceEditorText(dialogBox, text), 180);
+          } else if (boxAttempts >= 20) {
+            clearInterval(boxTimer);
+          }
+        }, 100);
+      } else if (menuAttempts >= 15) {
+        clearInterval(menuTimer);
+      }
+    }, 80);
+  }
+
   function openReplyAndFill(article, englishText) {
     if (!article) return;
     const replyBtn = article.querySelector('[data-testid="reply"]');
@@ -819,8 +867,14 @@
     const quickReplyBtn = document.createElement('button');
     quickReplyBtn.type = 'button';
     quickReplyBtn.className = 'xtr-quick-reply-btn';
-    quickReplyBtn.textContent = '回';
-    quickReplyBtn.title = isChineseRegion() ? '结合主贴图文生成多角度中文回复' : '结合主贴图文生成多角度英文回复';
+    quickReplyBtn.textContent = '评';
+    quickReplyBtn.title = isChineseRegion() ? '结合主贴图文生成多角度中文评论' : '结合主贴图文生成多角度英文评论';
+
+    const quoteRemixBtn = document.createElement('button');
+    quoteRemixBtn.type = 'button';
+    quoteRemixBtn.className = 'xtr-quick-reply-btn';
+    quoteRemixBtn.textContent = '引';
+    quoteRemixBtn.title = '一键生成引用转发 (Quote Tweet) 锐评';
 
     const resultBox = document.createElement('div');
     resultBox.className = 'xtr-result-box';
@@ -829,6 +883,10 @@
     const quickReplyBox = document.createElement('div');
     quickReplyBox.className = 'xtr-quick-reply-box';
     quickReplyBox.style.display = 'none';
+
+    const quoteRemixBox = document.createElement('div');
+    quoteRemixBox.className = 'xtr-quick-reply-box';
+    quoteRemixBox.style.display = 'none';
 
     btn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -898,7 +956,10 @@
               continuation
             });
             renderCandidateCards(candPanel, payload, {
-              onUse: (en) => openReplyAndFill(article, en),
+              onUse: (en) => {
+                logOpsEvent('reply', author);
+                openReplyAndFill(article, en);
+              },
               onClose: () => (candPanel.style.display = 'none')
             });
             candPanel.style.display = 'block';
@@ -928,14 +989,114 @@
         quickReplyBox.appendChild(candPanel);
       }
       quickReplyBox.style.display = 'block';
+      quoteRemixBox.style.display = 'none';
       quickReplyBox.querySelector('.xtr-qr-input')?.focus();
+    });
+
+    quoteRemixBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const showing = quoteRemixBox.style.display !== 'none';
+      if (showing) {
+        quoteRemixBox.style.display = 'none';
+        return;
+      }
+      if (!quoteRemixBox.dataset.built) {
+        quoteRemixBox.dataset.built = '1';
+        const row = document.createElement('div');
+        row.className = 'xtr-qr-row';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'xtr-qr-input';
+        input.placeholder = '引用转发想法（留空直接生成3条借势/拆台锐评）';
+
+        const stanceSel = buildStanceSelect();
+        const lengthSel = buildLengthSelect();
+        const { chip: continueChip, sync: syncContinue } = buildContinueChip();
+
+        const genBtn = document.createElement('button');
+        genBtn.type = 'button';
+        genBtn.className = 'xtr-compose-btn';
+        genBtn.textContent = '⚡ 生成引评';
+
+        const candPanel = document.createElement('div');
+        candPanel.className = 'xtr-candidates-panel';
+        candPanel.style.display = 'none';
+
+        sessionSyncListeners.add(() => {
+          stanceSel.value = SESSION_STATE.lastStance;
+          lengthSel.value = SESSION_STATE.lastLength;
+          syncContinue();
+        });
+
+        const runQuoteGen = async () => {
+          const idea = input.value.trim();
+          const article = tweetTextEl.closest('article[data-testid="tweet"]');
+          const author = getTweetAuthor(article);
+          const tweetContent = extractTextWithEmojis(tweetTextEl);
+          const { context: extraCtx, images } = extractTweetContextPayload(tweetTextEl, article);
+          const mainLine = author ? `${author}: ${tweetContent}` : tweetContent;
+          const context = extraCtx ? `${extraCtx}\n---\n[要引用转发的主贴]: ${mainLine}` : mainLine;
+          const continuation = getActiveContinuation();
+
+          genBtn.disabled = true;
+          genBtn.textContent = '生成中...';
+          try {
+            const payload = await sendMessageAsync({
+              type: 'GENERATE_QUOTE_REMIX',
+              idea,
+              context,
+              images,
+              stance: stanceSel.value,
+              length: lengthSel.value,
+              continuation
+            });
+            renderCandidateCards(candPanel, payload, {
+              onUse: (en) => {
+                logOpsEvent('quote', author);
+                openQuoteAndFill(article, en);
+              },
+              onClose: () => (candPanel.style.display = 'none')
+            });
+            candPanel.style.display = 'block';
+          } catch (err) {
+            renderErrorMessage(candPanel, '生成失败', err);
+            candPanel.style.display = 'block';
+          } finally {
+            genBtn.disabled = false;
+            genBtn.textContent = '⚡ 生成引评';
+          }
+        };
+
+        genBtn.addEventListener('click', runQuoteGen);
+        input.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            runQuoteGen();
+          }
+        });
+
+        row.appendChild(input);
+        row.appendChild(stanceSel);
+        row.appendChild(lengthSel);
+        row.appendChild(genBtn);
+        row.appendChild(continueChip);
+        quoteRemixBox.appendChild(row);
+        quoteRemixBox.appendChild(candPanel);
+      }
+      quickReplyBox.style.display = 'none';
+      quoteRemixBox.style.display = 'block';
+      quoteRemixBox.querySelector('.xtr-qr-input')?.focus();
     });
 
     controls.appendChild(btn);
     controls.appendChild(quickReplyBtn);
+    controls.appendChild(quoteRemixBtn);
     container.appendChild(controls);
     container.appendChild(resultBox);
     container.appendChild(quickReplyBox);
+    container.appendChild(quoteRemixBox);
 
     tweetTextEl.insertAdjacentElement('afterend', container);
 
@@ -1242,6 +1403,7 @@
               undoBtn.style.display = 'inline-flex';
             }
             replaceEditorText(textbox, en);
+            logOpsEvent(context ? 'reply' : 'post', '', statusSpan);
             statusSpan.textContent = '✓ 已填入';
             setTimeout(() => (statusSpan.textContent = ''), 2000);
           },
@@ -1553,6 +1715,7 @@
           }
           replaceEditorText(textbox, fullText);
           recordSelectedCandidate({ en: draft.mainPost, zh_back: draft.zhSummary, style: '成稿' });
+          logOpsEvent('post', '', statusSpan);
           statusSpan.textContent = '✓ 已填入成稿';
           setTimeout(() => (statusSpan.textContent = ''), 2200);
         });

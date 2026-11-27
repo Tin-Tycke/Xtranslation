@@ -61,7 +61,13 @@ const els = {
   saveBtn: document.getElementById('saveBtn'),
   testBtn: document.getElementById('testBtn'),
   clearCacheBtn: document.getElementById('clearCacheBtn'),
-  status: document.getElementById('status')
+  status: document.getElementById('status'),
+  opsReplies: document.getElementById('opsReplies'),
+  opsQuotes: document.getElementById('opsQuotes'),
+  opsPosts: document.getElementById('opsPosts'),
+  opsHourly: document.getElementById('opsHourly'),
+  opsPaceBadge: document.getElementById('opsPaceBadge'),
+  opsResetBtn: document.getElementById('opsResetBtn')
 };
 
 els.toggleKeyBtn.addEventListener('click', () => {
@@ -237,4 +243,36 @@ els.clearCacheBtn.addEventListener('click', () => {
   });
 });
 
-document.addEventListener('DOMContentLoaded', loadSettings);
+function renderOpsStats(stats) {
+  if (!stats) return;
+  els.opsReplies.textContent = String(stats.repliesToday || 0);
+  els.opsQuotes.textContent = String(stats.quotesToday || 0);
+  els.opsPosts.textContent = String(stats.postsToday || 0);
+  const pace = stats.pace || { level: 'safe', hourlyCount: 0, label: '节奏健康' };
+  els.opsHourly.textContent = `近1小时互动：${pace.hourlyCount} 次`;
+  const icon = pace.level === 'cooldown' ? '🔴' : pace.level === 'caution' ? '🟡' : '🟢';
+  els.opsPaceBadge.textContent = `${icon} ${pace.label}`;
+  els.opsPaceBadge.className = `ops-pace ${pace.level === 'safe' ? '' : pace.level}`.trim();
+}
+
+function loadOpsStats() {
+  chrome.runtime.sendMessage({ type: 'GET_OPS_STATS' }, (res) => {
+    if (res?.ok && res.data) {
+      renderOpsStats(res.data);
+    }
+  });
+}
+
+els.opsResetBtn?.addEventListener('click', () => {
+  chrome.runtime.sendMessage({ type: 'RESET_OPS_STATS' }, (res) => {
+    if (res?.ok && res.data) {
+      renderOpsStats(res.data);
+      showStatus('✓ 今日运营计数已重置');
+    }
+  });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadSettings();
+  loadOpsStats();
+});

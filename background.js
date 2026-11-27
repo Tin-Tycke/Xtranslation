@@ -4,6 +4,7 @@ if (typeof importScripts === 'function') {
   if (!globalThis.XTR_CORE) importScripts('lib/core.js');
   if (!globalThis.XTR_RADAR) importScripts('lib/radar.js');
   if (!globalThis.XTR_MEDIA_GEN) importScripts('lib/media_gen.js');
+  if (!globalThis.XTR_OPS) importScripts('lib/ops.js');
 }
 
 const CORE =
@@ -17,6 +18,10 @@ const RADAR =
 const MEDIA_GEN =
   globalThis.XTR_MEDIA_GEN ||
   (typeof require === 'function' ? require('./lib/media_gen.js') : null);
+
+const OPS =
+  globalThis.XTR_OPS ||
+  (typeof require === 'function' ? require('./lib/ops.js') : null);
 
 const {
   DEFAULT_SETTINGS,
@@ -32,6 +37,7 @@ const {
   buildTweetTranslationMessages,
   buildComposeDirectMessages,
   buildReplyCandidatesMessages,
+  buildQuoteRemixMessages,
   buildPostDraftMessages
 } = CORE;
 
@@ -623,6 +629,89 @@ async function generateAiVideoForDraft({ title = '', mainPost = '', imageUrl = '
   });
 }
 
+const OPS_STORAGE_KEY = 'xtr_ops_stats_v1';
+
+async function getOpsStatsWithPace() {
+  const res = await chrome.storage.local.get(OPS_STORAGE_KEY).catch(() => ({}));
+  const stats = OPS.normalizeOpsStats(res?.[OPS_STORAGE_KEY]);
+  return {
+    ...stats,
+    pace: OPS.evaluatePaceSafety(stats)
+  };
+}
+
+async function logOpsEvent({ kind = 'reply', author = '' } = {}) {
+  const res = await chrome.storage.local.get(OPS_STORAGE_KEY).catch(() => ({}));
+  const updated = OPS.recordOpsAction(res?.[OPS_STORAGE_KEY], { kind, author });
+  await chrome.storage.local.set({ [OPS_STORAGE_KEY]: updated }).catch(() => {});
+  return {
+    ...updated,
+    pace: OPS.evaluatePaceSafety(updated)
+  };
+}
+
+async function resetOpsStats() {
+  const fresh = OPS.createEmptyOpsStats();
+  await chrome.storage.local.set({ [OPS_STORAGE_KEY]: fresh }).catch(() => {});
+  return {
+    ...fresh,
+    pace: OPS.evaluatePaceSafety(fresh)
+  };
+}
+
+async function generateQuoteRemixCandidates({
+  context = '',
+  idea = '',
+  images = [],
+  stance,
+  tone,
+  length = 'auto',
+  continuation = null
+}) {
+  if ((!context || !context.trim()) && (!idea || !idea.trim()) && (!images || images.length === 0)) {
+    throw new Error('未检测到原推文内容');
+  }
+  const settings = await getSettings();
+  const region = normalizeRegion(settings.targetRegion);
+  const resolvedImages = await resolveImagesForLLM(images);
+  const messages = buildQuoteRemixMessages({
+    context,
+    idea,
+    images: resolvedImages,
+    stance: stance || tone || settings.defaultTone,
+    length: length || settings.defaultLength,
+    continuation,
+    glossary: settings.glossary,
+    region
+  });
+
+  const { content: raw, visionFallback } = await callLLM(messages, { temperature: 0.72, jsonMode: true });
+  const parsed = parseJsonSafely(raw);
+  const list = Array.isArray(parsed?.candidates) ? parsed.candidates : [];
+  if (list.length === 0) {
+    throw new Error('未能生成引用锐评，请重试');
+  }
+
+  const candidates = list
+    .filter((item) => item && (item.en || item.text))
+    .slice(0, 3)
+    .map((item) => {
+      const rawText = String(item.en || item.text).replace(/^["“]|["”]$/g, '').trim();
+      return {
+        style: sanitizeMiddleDots(item.style || '引用锐评'),
+        en: region === 'zh' ? sanitizeMiddleDots(rawText) : rawText,
+        zh_back: region === 'zh' ? '' : item.zh_back ? sanitizeMiddleDots(String(item.zh_back).trim()) : ''
+      };
+    });
+
+  return {
+    postTakeaway: typeof parsed?.post_takeaway === 'string' ? sanitizeMiddleDots(parsed.post_takeaway.trim()) : '',
+    candidates,
+    region,
+    visionFallback
+  };
+}
+
 async function handleMessage(message) {
   if (message.type === 'TRANSLATE_TWEET') {
     return translateTweetToChinese(
@@ -665,6 +754,26 @@ async function handleMessage(message) {
       length: message.length,
       continuation: message.continuation || null
     });
+  }
+  if (message.type === 'GENERATE_QUOTE_REMIX') {
+    return generateQuoteRemixCandidates({
+      context: message.context,
+      idea: message.idea || '',
+      images: message.images || [],
+      stance: message.stance,
+      tone: message.tone,
+      length: message.length,
+      continuation: message.continuation || null
+    });
+  }
+  if (message.type === 'LOG_OPS_EVENT') {
+    return logOpsEvent({ kind: message.kind, author: message.author });
+  }
+  if (message.type === 'GET_OPS_STATS') {
+    return getOpsStatsWithPace();
+  }
+  if (message.type === 'RESET_OPS_STATS') {
+    return resetOpsStats();
   }
   if (message.type === 'GENERATE_POST_DRAFT') {
     return generatePostDraft({
