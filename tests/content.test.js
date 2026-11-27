@@ -189,6 +189,7 @@ describe('content.js helpers & continuation state', () => {
       assert.equal(src.includes('Strictly wait for the reply modal'), true);
       assert.equal(src.includes('xtr-ops-mini-banner'), true);
       assert.equal(src.includes('controls.appendChild(btn);\n    controls.appendChild(draftIdeaBtn);'), true);
+      assert.equal(src.includes('📌 原帖大意：'), true);
       assert.equal(src.includes('xtr-writer-split'), true);
       assert.match(css, /\.xtr-candidates-row\s*\{[^}]*flex-direction:\s*column;/);
       assert.equal(

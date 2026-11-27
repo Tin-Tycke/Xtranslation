@@ -1394,12 +1394,52 @@
           }
         });
 
+        const gistBox = document.createElement('div');
+        gistBox.className = 'xtr-takeaway-box';
+        gistBox.style.marginBottom = '6px';
+        gistBox.textContent = '📌 原帖大意：正在提炼...';
+
+        const loadTweetGist = async () => {
+          const article = tweetTextEl.closest('article[data-testid="tweet"]');
+          const author = getTweetAuthor(article);
+          const tweetContent = extractTextWithEmojis(tweetTextEl);
+          if (!tweetContent) {
+            gistBox.style.display = 'none';
+            return;
+          }
+          if (isMostlyChinese(tweetContent)) {
+            const shortZh = tweetContent.replace(/\s+/g, ' ').trim();
+            gistBox.textContent = `📌 原帖大意：${shortZh.length > 140 ? shortZh.slice(0, 140) + '…' : shortZh}`;
+            return;
+          }
+          const { context: extraCtx, images } = extractTweetContextPayload(tweetTextEl, article);
+          try {
+            const data = await sendMessageAsync({
+              type: 'TRANSLATE_TWEET',
+              text: tweetContent,
+              author,
+              context: extraCtx,
+              images,
+              force: false
+            });
+            const gist = data.takeaway
+              ? `${data.takeaway}（${(data.translation || '').slice(0, 90)}${(data.translation || '').length > 90 ? '…' : ''}）`
+              : data.translation || tweetContent;
+            gistBox.textContent = `📌 原帖大意：${gist}`;
+            refreshOpsStatsFromBg();
+          } catch {
+            gistBox.textContent = `📌 原帖内容：${tweetContent.slice(0, 120)}${tweetContent.length > 120 ? '…' : ''}`;
+          }
+        };
+
         row.appendChild(input);
         row.appendChild(modeSel);
         row.appendChild(genBtn);
         draftIdeaBox.appendChild(buildOpsMiniBanner());
+        draftIdeaBox.appendChild(gistBox);
         draftIdeaBox.appendChild(row);
         draftIdeaBox.appendChild(outPanel);
+        loadTweetGist();
       }
       refreshOpsStatsFromBg();
       quickReplyBox.style.display = 'none';
