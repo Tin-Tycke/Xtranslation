@@ -183,4 +183,30 @@ describe('Quote Remix & Ops background handlers', () => {
     const afterDel = await bg.handleMessage({ type: 'DELETE_DRAFT', id: list[0].id });
     assert.equal(afterDel.length, 0);
   });
+
+  it('extracts concise gist and 3 draft angles via GET_DRAFT_ANGLES without middle dots', async () => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                gist: '作者在晒自己开源的 AI·Agent 框架',
+                angles: ['1: 质疑本地部署成本太高', '2: 对比大厂官方 SDK 的优势', '3: 拆解实际落地场景']
+              })
+            }
+          }
+        ]
+      })
+    });
+
+    const res = await bg.handleMessage({
+      type: 'GET_DRAFT_ANGLES',
+      text: 'Just open-sourced our new AI Agent framework!',
+      author: '@builder'
+    });
+    assert.equal(res.gist, '作者在晒自己开源的 AI Agent 框架');
+    assert.deepEqual(res.angles, ['质疑本地部署成本太高', '对比大厂官方 SDK 的优势', '拆解实际落地场景']);
+  });
 });

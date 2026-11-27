@@ -38,6 +38,7 @@ const {
   buildComposeDirectMessages,
   buildReplyCandidatesMessages,
   buildQuoteRemixMessages,
+  buildDraftAnglesMessages,
   buildPostDraftMessages
 } = CORE;
 
@@ -757,6 +758,42 @@ async function generateQuoteRemixCandidates({
   };
 }
 
+const draftAnglesCache = new Map();
+
+async function getDraftAnglesForTweet({ text = '', author = '', context = '', images = [] }) {
+  if (!text || !text.trim()) {
+    throw new Error('未检测到推文内容');
+  }
+  const cacheKey = `${author}:${(context || '').slice(0, 80)}:${text}`;
+  if (draftAnglesCache.has(cacheKey)) {
+    return draftAnglesCache.get(cacheKey);
+  }
+  const settings = await getSettings();
+  const resolvedImages = await resolveImagesForLLM(images);
+  const messages = buildDraftAnglesMessages({
+    text,
+    author,
+    context,
+    images: resolvedImages,
+    glossary: settings.glossary
+  });
+  const { content: raw } = await callLLM(messages, { temperature: 0.5, jsonMode: true });
+  const parsed = parseJsonSafely(raw);
+  const gist = sanitizeMiddleDots(parsed?.gist || '');
+  const angles = Array.isArray(parsed?.angles)
+    ? parsed.angles
+        .filter(Boolean)
+        .slice(0, 3)
+        .map((a) => sanitizeMiddleDots(String(a).replace(/^\s*[123][.:：、]\s*/, '').trim()))
+    : [];
+  const result = { gist, angles };
+  if (draftAnglesCache.size >= 200) {
+    draftAnglesCache.delete(draftAnglesCache.keys().next().value);
+  }
+  draftAnglesCache.set(cacheKey, result);
+  return result;
+}
+
 async function handleMessage(message) {
   if (message.type === 'TRANSLATE_TWEET') {
     return translateTweetToChinese(
@@ -809,6 +846,14 @@ async function handleMessage(message) {
       tone: message.tone,
       length: message.length,
       continuation: message.continuation || null
+    });
+  }
+  if (message.type === 'GET_DRAFT_ANGLES') {
+    return getDraftAnglesForTweet({
+      text: message.text || '',
+      author: message.author || '',
+      context: message.context || '',
+      images: message.images || []
     });
   }
   if (message.type === 'LOG_OPS_EVENT') {
