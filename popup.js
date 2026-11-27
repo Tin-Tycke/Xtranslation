@@ -43,6 +43,10 @@ const els = {
   model: document.getElementById('model'),
   defaultTone: document.getElementById('defaultTone'),
   defaultLength: document.getElementById('defaultLength'),
+  personaRole: document.getElementById('personaRole'),
+  personaStyle: document.getElementById('personaStyle'),
+  personaTopicsWrap: document.getElementById('personaTopicsWrap'),
+  persona: document.getElementById('persona'),
   glossary: document.getElementById('glossary'),
   searchProvider: document.getElementById('searchProvider'),
   searchApiKey: document.getElementById('searchApiKey'),
@@ -92,6 +96,27 @@ function syncRegionUI() {
 
 els.targetRegion.addEventListener('change', syncRegionUI);
 
+els.personaTopicsWrap?.addEventListener('click', (e) => {
+  const chip = e.target.closest('.topic-chip');
+  if (!chip) return;
+  chip.classList.toggle('is-active');
+});
+
+function getSelectedPersonaTopics() {
+  if (!els.personaTopicsWrap) return [];
+  return Array.from(els.personaTopicsWrap.querySelectorAll('.topic-chip.is-active'))
+    .map((el) => el.dataset.topic)
+    .filter(Boolean);
+}
+
+function setSelectedPersonaTopics(topics) {
+  if (!els.personaTopicsWrap) return;
+  const set = new Set(Array.isArray(topics) ? topics : []);
+  els.personaTopicsWrap.querySelectorAll('.topic-chip').forEach((el) => {
+    el.classList.toggle('is-active', set.has(el.dataset.topic));
+  });
+}
+
 function loadSettings() {
   chrome.storage.sync.get(
     {
@@ -102,6 +127,10 @@ function loadSettings() {
       model: 'deepseek-chat',
       defaultTone: 'mix',
       defaultLength: 'auto',
+      personaRole: 'custom',
+      personaStyle: 'default',
+      personaTopics: [],
+      persona: '',
       glossary: '',
       searchProvider: 'none',
       searchApiKey: '',
@@ -130,6 +159,10 @@ function loadSettings() {
       if (!els.defaultTone.value) els.defaultTone.value = 'mix';
       els.defaultLength.value = items.defaultLength || 'auto';
       if (!els.defaultLength.value) els.defaultLength.value = 'auto';
+      els.personaRole.value = items.personaRole || 'custom';
+      els.personaStyle.value = items.personaStyle || 'default';
+      setSelectedPersonaTopics(items.personaTopics);
+      els.persona.value = items.persona || '';
       els.glossary.value = items.glossary || '';
       const sp = items.searchProvider && items.searchProvider !== 'none'
         ? items.searchProvider
@@ -168,6 +201,10 @@ function saveSettings(silent = false) {
       model: els.model.value.trim(),
       defaultTone: els.defaultTone.value,
       defaultLength: els.defaultLength.value,
+      personaRole: els.personaRole.value,
+      personaStyle: els.personaStyle.value,
+      personaTopics: getSelectedPersonaTopics(),
+      persona: els.persona.value,
       glossary: els.glossary.value,
       searchProvider: sp,
       searchApiKey: sKey,

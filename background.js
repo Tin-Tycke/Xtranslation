@@ -30,6 +30,7 @@ const {
   stripImagesFromMessages,
   hasImageContent,
   sanitizeMiddleDots,
+  composePersonaText,
   normalizeRegion,
   normalizePostMode,
   normalizeRadarChannel,
@@ -112,7 +113,9 @@ async function setCached(key, val) {
 
 async function getSettings() {
   const stored = await chrome.storage.sync.get(DEFAULT_SETTINGS);
-  return { ...DEFAULT_SETTINGS, ...stored };
+  const merged = { ...DEFAULT_SETTINGS, ...stored };
+  merged.effectivePersona = composePersonaText(merged);
+  return merged;
 }
 
 function arrayBufferToBase64(buffer) {
@@ -347,7 +350,8 @@ async function translateChineseToAmericanEnglish({
     stance: stance || tone || settings.defaultTone,
     length: length || settings.defaultLength,
     continuation,
-    glossary: settings.glossary
+    glossary: settings.glossary,
+    persona: settings.effectivePersona
   });
 
   const { content: english } = await callLLM(messages, { temperature: 0.4, jsonMode: false });
@@ -378,6 +382,7 @@ async function generateReplyCandidates({
     length: length || settings.defaultLength,
     continuation,
     glossary: settings.glossary,
+    persona: settings.effectivePersona,
     region
   });
 
@@ -443,6 +448,7 @@ async function generatePostDraft({
     images: resolvedImages,
     continuation,
     glossary: settings.glossary,
+    persona: settings.effectivePersona,
     region
   });
 
@@ -479,7 +485,8 @@ async function fetchRadarTopics({ focus = '', channel = 'ai_tech', force = false
     : settings.grokApiKey
       ? 'grok'
       : 'none';
-  const cacheKey = `${region}:${effectiveChannel}:${sp}:${focusKey}`;
+  const personaHash = (settings.effectivePersona || '').slice(0, 40);
+  const cacheKey = `${region}:${effectiveChannel}:${sp}:${personaHash}:${focusKey}`;
   const cached = radarCache.get(cacheKey);
   if (!force && cached && Date.now() - cached.fetchedAt < RADAR_CACHE_TTL_MS) {
     return cached;
@@ -503,6 +510,7 @@ async function fetchRadarTopics({ focus = '', channel = 'ai_tech', force = false
   const messages = buildTopicCurationMessages(items, {
     customFocus: focus,
     glossary: settings.glossary,
+    persona: settings.effectivePersona,
     region,
     channel: effectiveChannel
   });
@@ -728,6 +736,7 @@ async function generateQuoteRemixCandidates({
     length: length || settings.defaultLength,
     continuation,
     glossary: settings.glossary,
+    persona: settings.effectivePersona,
     region
   });
 
@@ -764,12 +773,13 @@ async function getDraftAnglesForTweet({ text = '', author = '', context = '', im
   if (!text || !text.trim()) {
     throw new Error('未检测到推文内容');
   }
+  const settings = await getSettings();
   const effectivePurpose = purpose === 'quote' ? 'quote' : 'draft';
-  const cacheKey = `${effectivePurpose}:${author}:${(context || '').slice(0, 80)}:${text}`;
+  const personaHash = (settings.effectivePersona || '').slice(0, 40);
+  const cacheKey = `${effectivePurpose}:${personaHash}:${author}:${(context || '').slice(0, 80)}:${text}`;
   if (draftAnglesCache.has(cacheKey)) {
     return draftAnglesCache.get(cacheKey);
   }
-  const settings = await getSettings();
   const resolvedImages = await resolveImagesForLLM(images);
   const messages = buildDraftAnglesMessages({
     text,
@@ -777,6 +787,7 @@ async function getDraftAnglesForTweet({ text = '', author = '', context = '', im
     context,
     images: resolvedImages,
     glossary: settings.glossary,
+    persona: settings.effectivePersona,
     purpose: effectivePurpose
   });
   const { content: raw } = await callLLM(messages, { temperature: 0.5, jsonMode: true });

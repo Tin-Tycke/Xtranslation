@@ -209,6 +209,28 @@
       background: #272c30;
       color: #e7e9ea;
     }
+    .topic-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-bottom: 8px;
+    }
+    .topic-chip {
+      flex: 0 0 auto;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      border: 1px solid #2f3336;
+      background: #16181c;
+      color: #8b98a5;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .topic-chip.is-active {
+      border-color: #1d9bf0;
+      background: rgba(29, 155, 240, 0.18);
+      color: #1d9bf0;
+    }
   </style>
 </head>
 <body>
@@ -299,6 +321,43 @@
         <option value="medium">中长评 (2-4句)</option>
       </select>
     </div>
+  </div>
+
+  <div class="field-row">
+    <div class="field">
+      <label for="personaRole">👤 个人 IP 身份定位</label>
+      <select id="personaRole">
+        <option value="custom">自由定制 / 不预设</option>
+        <option value="ai_builder">AI 独立开发者（重实操/反画大饼）</option>
+        <option value="tech_critic">科技大厂锐评（敢唱反调/盯博弈）</option>
+        <option value="indie_growth">出海增长操盘（盯流量/变现）</option>
+        <option value="meme_observer">泛科技梗图冲浪（轻松玩梗/反讽）</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="personaStyle">语言风格</label>
+      <select id="personaStyle">
+        <option value="default">默认口语网感</option>
+        <option value="sharp">犀利毒舌</option>
+        <option value="grounded">务实硬核</option>
+        <option value="humorous">幽默玩梗</option>
+        <option value="calm">克制冷峻</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>主攻内容标签（可多选）</label>
+    <div class="topic-chips" id="personaTopicsWrap">
+      <button type="button" class="topic-chip" data-topic="AI 大模型">AI 大模型</button>
+      <button type="button" class="topic-chip" data-topic="大厂博弈">大厂博弈</button>
+      <button type="button" class="topic-chip" data-topic="独立开发">独立开发</button>
+      <button type="button" class="topic-chip" data-topic="开源工具">开源工具</button>
+      <button type="button" class="topic-chip" data-topic="出海变现">出海变现</button>
+      <button type="button" class="topic-chip" data-topic="梗图娱乐">梗图娱乐</button>
+      <button type="button" class="topic-chip" data-topic="商业观察">商业观察</button>
+    </div>
+    <textarea id="persona" placeholder="自定义个人 IP 补充（可选）：如你的真实经历、常用口吻、绝对不碰的雷区..."></textarea>
   </div>
 
   <div class="field">

@@ -298,4 +298,45 @@ describe('background.js', () => {
     assert.equal(res.candidates[0].en, '真正卷死的不是创业公司 是套壳产品');
     assert.equal(res.candidates[0].zh_back, '');
   });
+
+  it('injects configured structured persona into GENERATE_POST_DRAFT system prompt', async () => {
+    globalThis.chrome = createChromeMock({
+      personaRole: 'tech_critic',
+      personaStyle: 'calm',
+      personaTopics: ['大厂博弈', '商业观察'],
+      persona: '只看现金流和真实壁垒'
+    });
+    let capturedSystem = '';
+    globalThis.fetch = async (_url, opts) => {
+      capturedSystem = JSON.parse(opts.body).messages[0].content;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  title: '',
+                  main_post: 'Big tech AI capex is a cash flow test, not a demo contest.',
+                  first_reply: '',
+                  zh_summary: '大厂拼的是现金流不是演示',
+                  fact_check_note: ''
+                })
+              }
+            }
+          ]
+        })
+      };
+    };
+
+    await bg.handleMessage({
+      type: 'GENERATE_POST_DRAFT',
+      source: 'Big Tech capex hit record high this quarter.',
+      postMode: 'news_post'
+    });
+    assert.match(capturedSystem, /科技与大厂锐评博主/);
+    assert.match(capturedSystem, /大厂博弈 \/ 商业观察/);
+    assert.match(capturedSystem, /只看现金流和真实壁垒/);
+  });
 });

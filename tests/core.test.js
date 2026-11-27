@@ -215,5 +215,33 @@ describe('lib/core.js', () => {
       assert.match(zhPostMsgs[0].content, /不要整齐分点和并列排比/);
       assert.match(zhPostMsgs[1].content, /https:\/\/www\.anthropic\.com\/news\/test/);
     });
+
+    it('composes structured persona profile (role + style + topics + custom) and injects into prompts', () => {
+      const text = core.composePersonaText({
+        personaRole: 'ai_builder',
+        personaStyle: 'sharp',
+        personaTopics: ['AI 大模型', '独立开发'],
+        persona: '讨厌纯套壳吹牛'
+      });
+      assert.match(text, /AI 独立开发者/);
+      assert.match(text, /犀利毒舌/);
+      assert.match(text, /AI 大模型 \/ 独立开发/);
+      assert.match(text, /讨厌纯套壳吹牛/);
+
+      const enBlock = core.formatPersonaBlock(text, 'en');
+      assert.match(enBlock, /Personal IP \/ Persona Profile/);
+      assert.match(enBlock, /NEVER awkwardly self-introduce/);
+
+      const zhBlock = core.formatPersonaBlock(text, 'zh');
+      assert.match(zhBlock, /账号个人 IP/);
+      assert.match(zhBlock, /严禁生硬自我介绍/);
+
+      const replyMsgs = core.buildReplyCandidatesMessages({
+        context: '@founder: Launching another AI wrapper',
+        persona: text,
+        region: 'en'
+      });
+      assert.match(replyMsgs[0].content, /讨厌纯套壳吹牛/);
+    });
   });
 });
