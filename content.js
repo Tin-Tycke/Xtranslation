@@ -331,10 +331,10 @@
   }
 
   function formatOpsBannerText(stats) {
-    if (!stats) return '评：0｜引：0｜创：0｜Token：0；0次｜状态良好';
+    if (!stats) return '评：0｜引：0｜创：0｜Token：0；0次｜🟢 状态良好';
     const pace = stats.pace || { level: 'safe', hourlyCount: 0, label: '状态良好' };
     const statusText =
-      pace.level === 'cooldown' ? '建议休息' : pace.level === 'caution' ? '节奏偏密' : '状态良好';
+      pace.level === 'cooldown' ? '🔴 建议休息' : pace.level === 'caution' ? '🟡 节奏偏密' : '🟢 状态良好';
     const calls = stats.apiCallsToday || 0;
     const tok = formatCompactTokens(stats.totalTokensToday || 0);
     return `评：${stats.repliesToday || 0}｜引：${stats.quotesToday || 0}｜创：${stats.postsToday || 0}｜Token：${tok}；${calls}次｜${statusText}`;

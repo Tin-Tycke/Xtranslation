@@ -199,7 +199,7 @@ describe('content.js helpers & continuation state', () => {
           apiCallsToday: 5,
           pace: { level: 'safe' }
         }),
-        '评：1｜引：2｜创：3｜Token：3k；5次｜状态良好'
+        '评：1｜引：2｜创：3｜Token：3k；5次｜🟢 状态良好'
       );
     });
   });
