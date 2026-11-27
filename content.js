@@ -769,14 +769,22 @@
     let attempts = 0;
     const timer = setInterval(() => {
       attempts++;
-      const dialogBox =
-        document.querySelector('div[role="dialog"] div[data-testid^="tweetTextarea_"][contenteditable="true"]') ||
-        document.querySelector('div[data-testid^="tweetTextarea_"][contenteditable="true"]');
+      // Strictly wait for the reply modal's textbox first so we NEVER accidentally fill the background Home composer
+      const dialogBox = document.querySelector(
+        'div[role="dialog"] div[data-testid^="tweetTextarea_"][contenteditable="true"]'
+      );
       if (dialogBox) {
         clearInterval(timer);
-        setTimeout(() => replaceEditorText(dialogBox, englishText), 150);
-      } else if (attempts > 25) {
+        setTimeout(() => replaceEditorText(dialogBox, englishText), 180);
+        return;
+      }
+      // Fallback only after 1.5s if X used an inline reply box (e.g. on /status/ page) instead of a modal
+      if (attempts >= 15) {
         clearInterval(timer);
+        const active = document.activeElement?.closest?.('div[data-testid^="tweetTextarea_"][contenteditable="true"]');
+        if (active) {
+          replaceEditorText(active, englishText);
+        }
       }
     }, 100);
   }

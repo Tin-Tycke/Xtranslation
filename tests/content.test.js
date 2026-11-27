@@ -186,6 +186,7 @@ describe('content.js helpers & continuation state', () => {
       assert.equal(src.includes("execCommand('insertText'"), false);
       assert.equal(src.includes('function appendEditorText('), true);
       assert.equal(src.includes('function selectAllInEditor('), true);
+      assert.equal(src.includes('Strictly wait for the reply modal'), true);
       assert.equal(src.includes('xtr-writer-split'), true);
       assert.match(css, /\.xtr-candidates-row\s*\{[^}]*flex-direction:\s*column;/);
     });
