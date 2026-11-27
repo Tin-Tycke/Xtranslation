@@ -320,6 +320,26 @@
     return cur !== exp;
   }
 
+  function formatCompactTokens(n) {
+    const num = Number(n) || 0;
+    if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M`;
+    if (num >= 1000) {
+      const k = num / 1000;
+      return `${Number.isInteger(k) ? k : Number(k.toFixed(1))}k`;
+    }
+    return String(num);
+  }
+
+  function formatOpsBannerText(stats) {
+    if (!stats) return '评：0｜引：0｜创：0｜Token：0；0次｜状态良好';
+    const pace = stats.pace || { level: 'safe', hourlyCount: 0, label: '状态良好' };
+    const statusText =
+      pace.level === 'cooldown' ? '建议休息' : pace.level === 'caution' ? '节奏偏密' : '状态良好';
+    const calls = stats.apiCallsToday || 0;
+    const tok = formatCompactTokens(stats.totalTokensToday || 0);
+    return `评：${stats.repliesToday || 0}｜引：${stats.quotesToday || 0}｜创：${stats.postsToday || 0}｜Token：${tok}；${calls}次｜${statusText}`;
+  }
+
   function renderErrorMessage(container, prefix, err) {
     container.innerHTML = '';
     const errDiv = document.createElement('div');
@@ -340,6 +360,7 @@
       extractReplyContextPayload,
       normalizeComparableText,
       shouldFallbackAfterPaste,
+      formatOpsBannerText,
       renderErrorMessage,
       recordSelectedCandidate,
       clearLastSelection,
@@ -763,22 +784,6 @@
   const opsBannerSyncListeners = new Set();
   let latestOpsStats = null;
 
-  function formatCompactTokens(n) {
-    const num = Number(n) || 0;
-    if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
-    return String(num);
-  }
-
-  function formatOpsBannerText(stats) {
-    if (!stats) return '📊 今日 评 0  引 0  原创 0  |  调用 0 次  Token 0';
-    const pace = stats.pace || { level: 'safe', hourlyCount: 0, label: '节奏健康' };
-    const icon = pace.level === 'cooldown' ? '🔴' : pace.level === 'caution' ? '🟡' : '🟢';
-    const calls = stats.apiCallsToday || 0;
-    const tok = formatCompactTokens(stats.totalTokensToday || 0);
-    return `📊 评 ${stats.repliesToday || 0}  引 ${stats.quotesToday || 0}  原创 ${stats.postsToday || 0}  |  调用 ${calls} 次  Token ${tok}  |  ${icon} ${pace.label}`;
-  }
-
   function broadcastOpsStats(stats) {
     if (!stats) return;
     latestOpsStats = stats;
@@ -1021,6 +1026,7 @@
           } finally {
             genBtn.disabled = false;
             genBtn.textContent = '⚡ 生成';
+            refreshOpsStatsFromBg();
           }
         };
 
@@ -1120,6 +1126,7 @@
           } finally {
             genBtn.disabled = false;
             genBtn.textContent = '⚡ 生成引评';
+            refreshOpsStatsFromBg();
           }
         };
 

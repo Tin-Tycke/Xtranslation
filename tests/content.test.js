@@ -190,6 +190,17 @@ describe('content.js helpers & continuation state', () => {
       assert.equal(src.includes('xtr-ops-mini-banner'), true);
       assert.equal(src.includes('xtr-writer-split'), true);
       assert.match(css, /\.xtr-candidates-row\s*\{[^}]*flex-direction:\s*column;/);
+      assert.equal(
+        content.formatOpsBannerText({
+          repliesToday: 1,
+          quotesToday: 2,
+          postsToday: 3,
+          totalTokensToday: 3000,
+          apiCallsToday: 5,
+          pace: { level: 'safe' }
+        }),
+        '评：1｜引：2｜创：3｜Token：3k；5次｜状态良好'
+      );
     });
   });
 });
