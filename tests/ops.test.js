@@ -153,4 +153,34 @@ describe('Quote Remix & Ops background handlers', () => {
     assert.equal(reset.quotesToday, 0);
     assert.equal(reset.repliesToday, 0);
   });
+
+  it('saves, deduplicates, lists, and deletes drafts via SAVE_DRAFT / GET_DRAFTS / DELETE_DRAFT', async () => {
+    const saved1 = await bg.handleMessage({
+      type: 'SAVE_DRAFT',
+      draft: {
+        mainPost: 'Wild how everyone ignored the latency numbers.',
+        firstReply: 'https://example.com/bench',
+        kindLabel: '引评灵感',
+        mediaAssets: [{ type: 'x_post', url: 'https://x.com/a/status/1', label: '原 X 帖子' }]
+      }
+    });
+    assert.equal(saved1.length, 1);
+
+    // Duplicate mainPost replaces instead of creating duplicates
+    const saved2 = await bg.handleMessage({
+      type: 'SAVE_DRAFT',
+      draft: {
+        mainPost: 'Wild how everyone ignored the latency numbers.',
+        kindLabel: '引评灵感'
+      }
+    });
+    assert.equal(saved2.length, 1);
+
+    const list = await bg.handleMessage({ type: 'GET_DRAFTS' });
+    assert.equal(list.length, 1);
+    assert.equal(list[0].mainPost, 'Wild how everyone ignored the latency numbers.');
+
+    const afterDel = await bg.handleMessage({ type: 'DELETE_DRAFT', id: list[0].id });
+    assert.equal(afterDel.length, 0);
+  });
 });

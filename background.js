@@ -648,6 +648,26 @@ async function generateAiVideoForDraft({ title = '', mainPost = '', imageUrl = '
 }
 
 const OPS_STORAGE_KEY = 'xtr_ops_stats_v1';
+const DRAFTS_STORAGE_KEY = 'xtr_drafts_v1';
+
+async function getSavedDrafts() {
+  const res = await chrome.storage.local.get(DRAFTS_STORAGE_KEY).catch(() => ({}));
+  return OPS.normalizeDrafts(res?.[DRAFTS_STORAGE_KEY]);
+}
+
+async function saveDraftItem(draft) {
+  const existing = await getSavedDrafts();
+  const next = OPS.addDraftItem(existing, draft);
+  await chrome.storage.local.set({ [DRAFTS_STORAGE_KEY]: next }).catch(() => {});
+  return next;
+}
+
+async function deleteDraftItem(id) {
+  const existing = await getSavedDrafts();
+  const next = OPS.removeDraftItem(existing, id);
+  await chrome.storage.local.set({ [DRAFTS_STORAGE_KEY]: next }).catch(() => {});
+  return next;
+}
 
 async function getOpsStatsWithPace() {
   const res = await chrome.storage.local.get(OPS_STORAGE_KEY).catch(() => ({}));
@@ -799,6 +819,15 @@ async function handleMessage(message) {
   }
   if (message.type === 'RESET_OPS_STATS') {
     return resetOpsStats();
+  }
+  if (message.type === 'GET_DRAFTS') {
+    return getSavedDrafts();
+  }
+  if (message.type === 'SAVE_DRAFT') {
+    return saveDraftItem(message.draft);
+  }
+  if (message.type === 'DELETE_DRAFT') {
+    return deleteDraftItem(message.id);
   }
   if (message.type === 'GENERATE_POST_DRAFT') {
     return generatePostDraft({

@@ -161,6 +161,16 @@
     return '';
   }
 
+  function getTweetPermalink(article) {
+    if (!article || typeof article.querySelector !== 'function') return '';
+    const link = article.querySelector('a[href*="/status/"]');
+    const href = link?.getAttribute?.('href') || '';
+    const match = href.match(/^\/[A-Za-z0-9_]+\/status\/\d+/);
+    if (!match) return '';
+    const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://x.com';
+    return `${origin}${match[0]}`;
+  }
+
   function extractTweetContextPayload(tweetTextEl, article, pathname = '') {
     const parts = [];
     const seen = new Set([extractTextWithEmojis(tweetTextEl)]);
@@ -573,7 +583,7 @@
     return { chip, sync };
   }
 
-  function renderCandidateCards(panel, payload, { onUse, onClose }) {
+  function renderCandidateCards(panel, payload, { onUse, onClose, onSaveDraft } = {}) {
     panel.innerHTML = '';
     const candidates = Array.isArray(payload) ? payload : payload?.candidates || [];
     const postTakeaway = !Array.isArray(payload) ? payload?.postTakeaway : '';
@@ -633,6 +643,29 @@
           setTimeout(() => (copyBtn.textContent = '复制'), 1500);
         });
       });
+
+      if (typeof onSaveDraft === 'function') {
+        const saveDraftBtn = document.createElement('button');
+        saveDraftBtn.type = 'button';
+        saveDraftBtn.className = 'xtr-mini-btn';
+        saveDraftBtn.textContent = '存草稿';
+        saveDraftBtn.title = '存入本地草稿箱，方便错峰发布';
+        saveDraftBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          saveDraftBtn.disabled = true;
+          try {
+            await onSaveDraft(c);
+            saveDraftBtn.textContent = '✓ 已存';
+            setTimeout(() => (saveDraftBtn.textContent = '存草稿'), 1600);
+          } catch {
+            saveDraftBtn.textContent = '失败';
+            setTimeout(() => (saveDraftBtn.textContent = '存草稿'), 1600);
+          } finally {
+            saveDraftBtn.disabled = false;
+          }
+        });
+        actions.appendChild(saveDraftBtn);
+      }
 
       const useBtn = document.createElement('button');
       useBtn.type = 'button';
@@ -933,6 +966,12 @@
     quoteRemixBtn.textContent = '引';
     quoteRemixBtn.title = '一键生成引用转发 (Quote Tweet) 锐评';
 
+    const draftIdeaBtn = document.createElement('button');
+    draftIdeaBtn.type = 'button';
+    draftIdeaBtn.className = 'xtr-quick-reply-btn';
+    draftIdeaBtn.textContent = '稿';
+    draftIdeaBtn.title = '以这条推文为灵感生成原创草稿并存入草稿箱（错峰发）';
+
     const resultBox = document.createElement('div');
     resultBox.className = 'xtr-result-box';
     resultBox.style.display = 'none';
@@ -944,6 +983,10 @@
     const quoteRemixBox = document.createElement('div');
     quoteRemixBox.className = 'xtr-quick-reply-box';
     quoteRemixBox.style.display = 'none';
+
+    const draftIdeaBox = document.createElement('div');
+    draftIdeaBox.className = 'xtr-quick-reply-box';
+    draftIdeaBox.style.display = 'none';
 
     btn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -1012,11 +1055,26 @@
               length: lengthSel.value,
               continuation
             });
+            const tweetUrl = getTweetPermalink(article);
+            const draftMedia = [
+              ...(images || []).map((img) => ({ type: 'image', url: img.url, label: '原帖配图' })),
+              ...(tweetUrl ? [{ type: 'x_post', url: tweetUrl, label: '原 X 帖子' }] : [])
+            ];
             renderCandidateCards(candPanel, payload, {
               onUse: (en) => {
                 logOpsEvent('reply', author);
                 openReplyAndFill(article, en);
               },
+              onSaveDraft: (c) =>
+                sendMessageAsync({
+                  type: 'SAVE_DRAFT',
+                  draft: {
+                    mainPost: c.en,
+                    zhSummary: c.zh_back || payload.postTakeaway || '',
+                    kindLabel: `评论灵感 ${c.style || ''}`.trim(),
+                    mediaAssets: draftMedia
+                  }
+                }),
               onClose: () => (candPanel.style.display = 'none')
             });
             candPanel.style.display = 'block';
@@ -1050,6 +1108,7 @@
       refreshOpsStatsFromBg();
       quickReplyBox.style.display = 'block';
       quoteRemixBox.style.display = 'none';
+      draftIdeaBox.style.display = 'none';
       quickReplyBox.querySelector('.xtr-qr-input')?.focus();
     });
 
@@ -1112,11 +1171,26 @@
               length: lengthSel.value,
               continuation
             });
+            const tweetUrl = getTweetPermalink(article);
+            const draftMedia = [
+              ...(images || []).map((img) => ({ type: 'image', url: img.url, label: '原帖配图' })),
+              ...(tweetUrl ? [{ type: 'x_post', url: tweetUrl, label: '原 X 帖子' }] : [])
+            ];
             renderCandidateCards(candPanel, payload, {
               onUse: (en) => {
                 logOpsEvent('quote', author);
                 openQuoteAndFill(article, en);
               },
+              onSaveDraft: (c) =>
+                sendMessageAsync({
+                  type: 'SAVE_DRAFT',
+                  draft: {
+                    mainPost: c.en,
+                    zhSummary: c.zh_back || payload.postTakeaway || '',
+                    kindLabel: `引评灵感 ${c.style || ''}`.trim(),
+                    mediaAssets: draftMedia
+                  }
+                }),
               onClose: () => (candPanel.style.display = 'none')
             });
             candPanel.style.display = 'block';
@@ -1150,16 +1224,199 @@
       refreshOpsStatsFromBg();
       quickReplyBox.style.display = 'none';
       quoteRemixBox.style.display = 'block';
+      draftIdeaBox.style.display = 'none';
       quoteRemixBox.querySelector('.xtr-qr-input')?.focus();
+    });
+
+    draftIdeaBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const showing = draftIdeaBox.style.display !== 'none';
+      if (showing) {
+        draftIdeaBox.style.display = 'none';
+        return;
+      }
+      if (!draftIdeaBox.dataset.built) {
+        draftIdeaBox.dataset.built = '1';
+        const row = document.createElement('div');
+        row.className = 'xtr-qr-row';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'xtr-qr-input';
+        input.placeholder = '可选：补一句你的观点（留空直接按这条推文写原创草稿）';
+
+        const modeSel = document.createElement('select');
+        modeSel.className = 'xtr-tone-select';
+        modeSel.title = '选择草稿载体';
+        POST_MODES.forEach((m) => {
+          const opt = document.createElement('option');
+          opt.value = m.value;
+          opt.textContent = m.label;
+          if (m.value === SESSION_STATE.lastPostMode) opt.selected = true;
+          modeSel.appendChild(opt);
+        });
+        modeSel.addEventListener('change', () => {
+          SESSION_STATE.lastPostMode = normalizePostMode(modeSel.value);
+          persistSessionState();
+        });
+
+        const genBtn = document.createElement('button');
+        genBtn.type = 'button';
+        genBtn.className = 'xtr-compose-btn';
+        genBtn.textContent = '⚡ 写草稿';
+
+        const outPanel = document.createElement('div');
+        outPanel.className = 'xtr-candidates-panel';
+        outPanel.style.display = 'none';
+
+        sessionSyncListeners.add(() => {
+          modeSel.value = SESSION_STATE.lastPostMode;
+        });
+
+        const runDraftGen = async () => {
+          const userAngle = input.value.trim();
+          const article = tweetTextEl.closest('article[data-testid="tweet"]');
+          const author = getTweetAuthor(article);
+          const tweetContent = extractTextWithEmojis(tweetTextEl);
+          const { context: extraCtx, images } = extractTweetContextPayload(tweetTextEl, article);
+          const tweetUrl = getTweetPermalink(article);
+          let source = author ? `${author}: ${tweetContent}` : tweetContent;
+          if (extraCtx) source = `${extraCtx}\n---\n${source}`;
+          if (userAngle) source += `\n\n[我的切入点/观点]: ${userAngle}`;
+
+          genBtn.disabled = true;
+          genBtn.textContent = '写作中...';
+          try {
+            const draft = await sendMessageAsync({
+              type: 'GENERATE_POST_DRAFT',
+              source,
+              postMode: modeSel.value,
+              sourceLink: tweetUrl,
+              images,
+              continuation: getActiveContinuation()
+            });
+
+            outPanel.innerHTML = '';
+            const card = document.createElement('div');
+            card.className = 'xtr-writer-block';
+
+            const meta = document.createElement('div');
+            meta.className = 'xtr-candidate-meta';
+            const titleLbl = document.createElement('span');
+            titleLbl.className = 'xtr-candidate-style';
+            const fullText = draft.title ? `${draft.title}\n\n${draft.mainPost}` : draft.mainPost;
+            titleLbl.textContent = `原创草稿 (${fullText.length} 字符)`;
+
+            const acts = document.createElement('div');
+            acts.className = 'xtr-candidate-actions';
+
+            const copyBtn = document.createElement('button');
+            copyBtn.type = 'button';
+            copyBtn.className = 'xtr-mini-btn';
+            copyBtn.textContent = '复制';
+            copyBtn.addEventListener('click', (ev) => {
+              ev.stopPropagation();
+              navigator.clipboard?.writeText(fullText).then(() => {
+                copyBtn.textContent = '已复制';
+                setTimeout(() => (copyBtn.textContent = '复制'), 1400);
+              });
+            });
+
+            const saveBtn = document.createElement('button');
+            saveBtn.type = 'button';
+            saveBtn.className = 'xtr-mini-btn is-primary';
+            saveBtn.textContent = '💾 存入草稿箱';
+            saveBtn.addEventListener('click', async (ev) => {
+              ev.stopPropagation();
+              saveBtn.disabled = true;
+              try {
+                const modeNames = { news_post: '新闻快评', long_article: '深度长文', method_guide: '方法实战' };
+                const tweetMedia = [
+                  ...(images || []).map((img) => ({ type: 'image', url: img.url, label: '原帖配图' })),
+                  ...(draft.mediaAssets || [])
+                ];
+                await sendMessageAsync({
+                  type: 'SAVE_DRAFT',
+                  draft: {
+                    title: draft.title || '',
+                    mainPost: draft.mainPost || '',
+                    firstReply: draft.firstReply || '',
+                    zhSummary: draft.zhSummary || '',
+                    factCheckNote: draft.factCheckNote || '',
+                    postMode: draft.postMode || modeSel.value,
+                    kindLabel: modeNames[modeSel.value] || '原创草稿',
+                    mediaAssets: tweetMedia
+                  }
+                });
+                saveBtn.textContent = '✓ 已存草稿箱';
+                setTimeout(() => (saveBtn.textContent = '💾 存入草稿箱'), 1800);
+              } finally {
+                saveBtn.disabled = false;
+              }
+            });
+
+            acts.appendChild(copyBtn);
+            acts.appendChild(saveBtn);
+            meta.appendChild(titleLbl);
+            meta.appendChild(acts);
+
+            const bodyDiv = document.createElement('div');
+            bodyDiv.className = 'xtr-writer-body';
+            bodyDiv.textContent = fullText;
+
+            card.appendChild(meta);
+            if (draft.zhSummary) {
+              const sum = document.createElement('div');
+              sum.className = 'xtr-takeaway-box';
+              sum.style.marginBottom = '6px';
+              sum.textContent = `🎯 核心判断：${draft.zhSummary}`;
+              card.appendChild(sum);
+            }
+            card.appendChild(bodyDiv);
+            outPanel.appendChild(card);
+            outPanel.style.display = 'flex';
+          } catch (err) {
+            renderErrorMessage(outPanel, '生成草稿失败', err);
+            outPanel.style.display = 'flex';
+          } finally {
+            genBtn.disabled = false;
+            genBtn.textContent = '⚡ 写草稿';
+            refreshOpsStatsFromBg();
+          }
+        };
+
+        genBtn.addEventListener('click', runDraftGen);
+        input.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            runDraftGen();
+          }
+        });
+
+        row.appendChild(input);
+        row.appendChild(modeSel);
+        row.appendChild(genBtn);
+        draftIdeaBox.appendChild(buildOpsMiniBanner());
+        draftIdeaBox.appendChild(row);
+        draftIdeaBox.appendChild(outPanel);
+      }
+      refreshOpsStatsFromBg();
+      quickReplyBox.style.display = 'none';
+      quoteRemixBox.style.display = 'none';
+      draftIdeaBox.style.display = 'block';
+      draftIdeaBox.querySelector('.xtr-qr-input')?.focus();
     });
 
     controls.appendChild(btn);
     controls.appendChild(quickReplyBtn);
     controls.appendChild(quoteRemixBtn);
+    controls.appendChild(draftIdeaBtn);
     container.appendChild(controls);
     container.appendChild(resultBox);
     container.appendChild(quickReplyBox);
     container.appendChild(quoteRemixBox);
+    container.appendChild(draftIdeaBox);
 
     tweetTextEl.insertAdjacentElement('afterend', container);
 
@@ -1543,8 +1800,14 @@
       manualTabBtn.className = 'xtr-tab-btn';
       manualTabBtn.textContent = '✍️ 贴素材';
 
+      const draftsTabBtn = document.createElement('button');
+      draftsTabBtn.type = 'button';
+      draftsTabBtn.className = 'xtr-tab-btn';
+      draftsTabBtn.textContent = '📦 草稿箱';
+
       tabGroup.appendChild(radarTabBtn);
       tabGroup.appendChild(manualTabBtn);
+      tabGroup.appendChild(draftsTabBtn);
 
       const closeWriterBtn = document.createElement('button');
       closeWriterBtn.type = 'button';
@@ -1657,6 +1920,73 @@
       manualView.appendChild(sourceArea);
       manualView.appendChild(bottomRow);
 
+      // --- Tab 3: Local Drafts Box ---
+      const draftsView = document.createElement('div');
+      draftsView.className = 'xtr-manual-view';
+      draftsView.style.display = 'none';
+
+      const draftsList = document.createElement('div');
+      draftsList.className = 'xtr-radar-list';
+      draftsView.appendChild(draftsList);
+
+      const loadAndRenderDrafts = async () => {
+        draftsList.innerHTML = '';
+        try {
+          const list = await sendMessageAsync({ type: 'GET_DRAFTS' });
+          draftsTabBtn.textContent = list.length > 0 ? `📦 草稿箱 (${list.length})` : '📦 草稿箱';
+          if (!list || list.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'xtr-writer-note';
+            empty.textContent = '还没有保存的草稿。刷到好帖点「评/引 → 存草稿」或写完点「💾 存草稿」，就能在这里错峰取用。';
+            draftsList.appendChild(empty);
+            return;
+          }
+          list.forEach((item) => {
+            const card = document.createElement('div');
+            card.className = 'xtr-radar-card';
+            card.style.cursor = 'pointer';
+
+            const meta = document.createElement('div');
+            meta.className = 'xtr-candidate-meta';
+
+            const badge = document.createElement('span');
+            badge.className = 'xtr-candidate-style';
+            const dt = new Date(item.createdAt || Date.now());
+            const timeStr = `${String(dt.getMonth() + 1).padStart(2, '0')}/${String(dt.getDate()).padStart(2, '0')} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+            badge.textContent = `${item.kindLabel || '草稿'} ${timeStr}`;
+
+            const delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'xtr-mini-btn';
+            delBtn.textContent = '删除';
+            delBtn.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              await sendMessageAsync({ type: 'DELETE_DRAFT', id: item.id });
+              loadAndRenderDrafts();
+            });
+
+            meta.appendChild(badge);
+            meta.appendChild(delBtn);
+
+            const preview = document.createElement('div');
+            preview.className = 'xtr-radar-summary';
+            const textPreview = item.title ? `${item.title} — ${item.mainPost}` : item.mainPost;
+            preview.textContent = textPreview.length > 110 ? textPreview.slice(0, 110) + '…' : textPreview;
+
+            card.appendChild(meta);
+            card.appendChild(preview);
+            card.addEventListener('click', () => {
+              draftsList.querySelectorAll('.xtr-radar-card.is-selected').forEach((c) => c.classList.remove('is-selected'));
+              card.classList.add('is-selected');
+              renderDraftResult(item, { fromDraftsBox: true });
+            });
+            draftsList.appendChild(card);
+          });
+        } catch (err) {
+          renderErrorMessage(draftsList, '读取草稿箱失败', err);
+        }
+      };
+
       const splitWrap = document.createElement('div');
       splitWrap.className = 'xtr-writer-split';
 
@@ -1679,11 +2009,15 @@
       };
 
       const switchTab = (tab) => {
-        const isRadar = tab === 'radar';
-        radarTabBtn.classList.toggle('is-active', isRadar);
-        manualTabBtn.classList.toggle('is-active', !isRadar);
-        radarView.style.display = isRadar ? 'flex' : 'none';
-        manualView.style.display = isRadar ? 'none' : 'flex';
+        radarTabBtn.classList.toggle('is-active', tab === 'radar');
+        manualTabBtn.classList.toggle('is-active', tab === 'manual');
+        draftsTabBtn.classList.toggle('is-active', tab === 'drafts');
+        radarView.style.display = tab === 'radar' ? 'flex' : 'none';
+        manualView.style.display = tab === 'manual' ? 'flex' : 'none';
+        draftsView.style.display = tab === 'drafts' ? 'flex' : 'none';
+        if (tab === 'drafts') {
+          loadAndRenderDrafts();
+        }
       };
 
       radarTabBtn.addEventListener('click', (e) => {
@@ -1698,6 +2032,12 @@
         switchTab('manual');
       });
 
+      draftsTabBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        switchTab('drafts');
+      });
+
       sessionSyncListeners.add(() => {
         modeBtns.forEach((pill, val) => {
           pill.classList.toggle('is-active', SESSION_STATE.lastPostMode === val);
@@ -1707,7 +2047,7 @@
         });
       });
 
-      const renderDraftResult = (draft) => {
+      const renderDraftResult = (draft, { fromDraftsBox = false } = {}) => {
         resultWrap.innerHTML = '';
 
         const paneHeader = document.createElement('div');
@@ -1782,6 +2122,41 @@
           statusSpan.textContent = '✓ 已填入成稿';
           setTimeout(() => (statusSpan.textContent = ''), 2200);
         });
+
+        if (!fromDraftsBox) {
+          const saveBtn = document.createElement('button');
+          saveBtn.type = 'button';
+          saveBtn.className = 'xtr-mini-btn';
+          saveBtn.textContent = '💾 存草稿';
+          saveBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            saveBtn.disabled = true;
+            try {
+              const modeNames = { news_post: '新闻快评', long_article: '深度长文', method_guide: '方法实战' };
+              const updated = await sendMessageAsync({
+                type: 'SAVE_DRAFT',
+                draft: {
+                  title: draft.title || '',
+                  mainPost: draft.mainPost || '',
+                  firstReply: draft.firstReply || '',
+                  zhSummary: draft.zhSummary || '',
+                  factCheckNote: draft.factCheckNote || '',
+                  postMode: draft.postMode || 'news_post',
+                  kindLabel: modeNames[draft.postMode] || '成稿',
+                  mediaAssets: draft.mediaAssets || []
+                }
+              });
+              draftsTabBtn.textContent = `📦 草稿箱 (${updated.length})`;
+              saveBtn.textContent = '✓ 已存';
+              setTimeout(() => (saveBtn.textContent = '💾 存草稿'), 1600);
+            } catch (err) {
+              statusSpan.textContent = `⚠ ${err.message}`;
+            } finally {
+              saveBtn.disabled = false;
+            }
+          });
+          mainActions.appendChild(saveBtn);
+        }
 
         mainActions.appendChild(copyMainBtn);
         mainActions.appendChild(fillMainBtn);
@@ -2308,12 +2683,14 @@
 
       leftPane.appendChild(radarView);
       leftPane.appendChild(manualView);
+      leftPane.appendChild(draftsView);
       splitWrap.appendChild(leftPane);
       splitWrap.appendChild(resultWrap);
 
       writerPanel.appendChild(topRow);
       writerPanel.appendChild(modesWrap);
       writerPanel.appendChild(splitWrap);
+      loadAndRenderDrafts();
     };
 
     writerToggleBtn.addEventListener('click', (e) => {
