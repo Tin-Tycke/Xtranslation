@@ -47,7 +47,6 @@ const els = {
   personaStyle: document.getElementById('personaStyle'),
   personaTopicsWrap: document.getElementById('personaTopicsWrap'),
   persona: document.getElementById('persona'),
-  glossary: document.getElementById('glossary'),
   searchProvider: document.getElementById('searchProvider'),
   searchApiKey: document.getElementById('searchApiKey'),
   searchModel: document.getElementById('searchModel'),
@@ -163,7 +162,6 @@ function loadSettings() {
       els.personaStyle.value = items.personaStyle || 'default';
       setSelectedPersonaTopics(items.personaTopics);
       els.persona.value = items.persona || '';
-      els.glossary.value = items.glossary || '';
       const sp = items.searchProvider && items.searchProvider !== 'none'
         ? items.searchProvider
         : items.grokApiKey
@@ -205,7 +203,6 @@ function saveSettings(silent = false) {
       personaStyle: els.personaStyle.value,
       personaTopics: getSelectedPersonaTopics(),
       persona: els.persona.value,
-      glossary: els.glossary.value,
       searchProvider: sp,
       searchApiKey: sKey,
       searchModel: sModel,
