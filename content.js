@@ -1405,9 +1405,26 @@
       manualView.appendChild(sourceArea);
       manualView.appendChild(bottomRow);
 
+      const splitWrap = document.createElement('div');
+      splitWrap.className = 'xtr-writer-split';
+
+      const leftPane = document.createElement('div');
+      leftPane.className = 'xtr-writer-left';
+
       const resultWrap = document.createElement('div');
       resultWrap.className = 'xtr-writer-result';
       resultWrap.style.display = 'none';
+
+      const openResultPane = () => {
+        resultWrap.style.display = 'flex';
+        splitWrap.classList.add('has-result');
+      };
+
+      const closeResultPane = () => {
+        resultWrap.style.display = 'none';
+        splitWrap.classList.remove('has-result');
+        radarList.querySelectorAll('.xtr-radar-card.is-selected').forEach((c) => c.classList.remove('is-selected'));
+      };
 
       const switchTab = (tab) => {
         const isRadar = tab === 'radar';
@@ -1440,6 +1457,23 @@
 
       const renderDraftResult = (draft) => {
         resultWrap.innerHTML = '';
+
+        const paneHeader = document.createElement('div');
+        paneHeader.className = 'xtr-candidates-header';
+        const paneTitle = document.createElement('span');
+        paneTitle.textContent = '📄 成稿与素材（可上下滑动）';
+        const paneCloseBtn = document.createElement('button');
+        paneCloseBtn.type = 'button';
+        paneCloseBtn.className = 'xtr-close-btn';
+        paneCloseBtn.textContent = '×';
+        paneCloseBtn.title = '收起右侧成稿窗口';
+        paneCloseBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          closeResultPane();
+        });
+        paneHeader.appendChild(paneTitle);
+        paneHeader.appendChild(paneCloseBtn);
+        resultWrap.appendChild(paneHeader);
 
         if (draft.zhSummary) {
           const sumDiv = document.createElement('div');
@@ -1840,7 +1874,7 @@
           resultWrap.appendChild(mediaStrip);
         }
 
-        resultWrap.style.display = 'flex';
+        openResultPane();
       };
 
       const renderRadarTopics = (data) => {
@@ -1920,6 +1954,8 @@
           draftBtn.addEventListener('click', async (e) => {
             e.preventDefault();
             e.stopPropagation();
+            radarList.querySelectorAll('.xtr-radar-card.is-selected').forEach((c) => c.classList.remove('is-selected'));
+            card.classList.add('is-selected');
             draftBtn.disabled = true;
             draftBtn.textContent = '深挖写作中...';
             try {
@@ -1933,7 +1969,7 @@
               renderDraftResult(draft);
             } catch (err) {
               renderErrorMessage(resultWrap, '补满成稿失败', err);
-              resultWrap.style.display = 'flex';
+              openResultPane();
             } finally {
               draftBtn.disabled = false;
               draftBtn.textContent = '⚡ 选这个补满';
@@ -1991,7 +2027,7 @@
         const { context, images } = extractReplyContextPayload(textbox);
         if (!rawSource && !context && images.length === 0) {
           renderErrorMessage(resultWrap, '提示', new Error('请先输入核实过的素材、新闻要点或笔记'));
-          resultWrap.style.display = 'flex';
+          openResultPane();
           return;
         }
 
@@ -2010,18 +2046,21 @@
           renderDraftResult(draft);
         } catch (err) {
           renderErrorMessage(resultWrap, '生成失败', err);
-          resultWrap.style.display = 'flex';
+          openResultPane();
         } finally {
           genPostBtn.disabled = false;
           genPostBtn.textContent = '⚡ 生成成稿';
         }
       });
 
+      leftPane.appendChild(radarView);
+      leftPane.appendChild(manualView);
+      splitWrap.appendChild(leftPane);
+      splitWrap.appendChild(resultWrap);
+
       writerPanel.appendChild(topRow);
       writerPanel.appendChild(modesWrap);
-      writerPanel.appendChild(radarView);
-      writerPanel.appendChild(manualView);
-      writerPanel.appendChild(resultWrap);
+      writerPanel.appendChild(splitWrap);
     };
 
     writerToggleBtn.addEventListener('click', (e) => {

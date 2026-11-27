@@ -450,14 +450,48 @@
   width: 100%;
   margin-top: 6px;
   padding: 9px 10px;
-  max-height: 310px;
-  overflow-y: auto;
   border-radius: 10px;
   border: 1px solid rgba(128, 128, 128, 0.28);
   background: rgba(128, 128, 128, 0.05);
   display: flex;
   flex-direction: column;
   gap: 7px;
+}
+
+.xtr-writer-split {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+}
+
+.xtr-writer-left {
+  flex: 1 1 100%;
+  min-width: 0;
+  max-height: 295px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.xtr-writer-split.has-result .xtr-writer-left {
+  flex: 0 0 43%;
+  padding-right: 6px;
+  border-right: 1px solid rgba(128, 128, 128, 0.22);
+}
+
+.xtr-writer-result {
+  flex: 1 1 57%;
+  min-width: 0;
+  max-height: 295px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-left: 2px;
 }
 
 .xtr-writer-top {
@@ -534,12 +568,6 @@
   outline: none;
 }
 
-.xtr-writer-result {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 .xtr-writer-block {
   padding: 8px 10px;
   border-radius: 8px;
@@ -600,18 +628,11 @@
 
 .xtr-radar-list {
   display: flex;
-  flex-direction: row;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-  scroll-snap-type: x proximity;
+  flex-direction: column;
+  gap: 7px;
 }
 
 .xtr-radar-card {
-  flex: 0 0 265px;
-  max-height: 190px;
-  overflow-y: auto;
-  scroll-snap-align: start;
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid rgba(128, 128, 128, 0.28);
@@ -619,6 +640,12 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.xtr-radar-card.is-selected {
+  border-color: rgb(29, 155, 240);
+  background: rgba(29, 155, 240, 0.08);
 }
 
 .xtr-radar-badges {

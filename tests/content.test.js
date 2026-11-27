@@ -184,6 +184,7 @@ describe('content.js helpers & continuation state', () => {
       const src = fs.readFileSync(path.join(__dirname, '..', 'content.js'), 'utf8');
       assert.equal(src.includes("execCommand('insertText'"), false);
       assert.equal(src.includes('function appendEditorText('), true);
+      assert.equal(src.includes('xtr-writer-split'), true);
     });
   });
 });
