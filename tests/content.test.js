@@ -185,6 +185,7 @@ describe('content.js helpers & continuation state', () => {
       const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
       assert.equal(src.includes("execCommand('insertText'"), false);
       assert.equal(src.includes('function appendEditorText('), true);
+      assert.equal(src.includes('function selectAllInEditor('), true);
       assert.equal(src.includes('xtr-writer-split'), true);
       assert.match(css, /\.xtr-candidates-row\s*\{[^}]*flex-direction:\s*column;/);
     });

@@ -774,8 +774,8 @@
         document.querySelector('div[data-testid^="tweetTextarea_"][contenteditable="true"]');
       if (dialogBox) {
         clearInterval(timer);
-        replaceEditorText(dialogBox, englishText);
-      } else if (attempts > 20) {
+        setTimeout(() => replaceEditorText(dialogBox, englishText), 150);
+      } else if (attempts > 25) {
         clearInterval(timer);
       }
     }, 100);
@@ -984,40 +984,59 @@
     }
   }
 
-  function replaceEditorText(textbox, newText) {
+  function selectAllInEditor(textbox) {
+    const inner = textbox.querySelector?.('[data-block="true"]') || textbox;
+    try {
+      inner.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      inner.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+    } catch {
+      // ignore synthetic mouse event errors
+    }
     textbox.focus();
-
     const selection = window.getSelection();
     const range = document.createRange();
     range.selectNodeContents(textbox);
     selection.removeAllRanges();
     selection.addRange(range);
     document.dispatchEvent(new Event('selectionchange'));
+  }
 
-    // Wait briefly so Draft.js syncs its internal SelectionState to "select all" before pasting
+  function replaceEditorText(textbox, newText) {
+    selectAllInEditor(textbox);
+
+    // Wait 80ms so an untouched / freshly mounted Draft.js editor finishes onFocus + SelectionState sync
     setTimeout(() => {
       textbox.focus();
       const dt = dispatchSyntheticPaste(textbox, newText);
 
-      // Only if editor is still completely empty, try Draft.js-friendly beforeinput (NEVER use execCommand insertText which corrupts Draft.js link entities & breaks Backspace)
+      // If first paste was dropped while Draft.js was still hydrating focus, retry paste once cleanly
       setTimeout(() => {
-        if (!normalizeComparableText(textbox.innerText || '') && dt && typeof InputEvent === 'function') {
-          try {
-            textbox.dispatchEvent(
-              new InputEvent('beforeinput', {
-                bubbles: true,
-                cancelable: true,
-                inputType: 'insertFromPaste',
-                data: newText,
-                dataTransfer: dt
-              })
-            );
-          } catch {
-            // ignore
-          }
+        if (!normalizeComparableText(textbox.innerText || '')) {
+          selectAllInEditor(textbox);
+          setTimeout(() => {
+            textbox.focus();
+            const retryDt = dispatchSyntheticPaste(textbox, newText) || dt;
+            setTimeout(() => {
+              if (!normalizeComparableText(textbox.innerText || '') && retryDt && typeof InputEvent === 'function') {
+                try {
+                  textbox.dispatchEvent(
+                    new InputEvent('beforeinput', {
+                      bubbles: true,
+                      cancelable: true,
+                      inputType: 'insertFromPaste',
+                      data: newText,
+                      dataTransfer: retryDt
+                    })
+                  );
+                } catch {
+                  // ignore
+                }
+              }
+            }, 90);
+          }, 50);
         }
-      }, 90);
-    }, 30);
+      }, 120);
+    }, 80);
   }
 
   function appendEditorText(textbox, textToAppend) {
