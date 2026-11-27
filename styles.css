@@ -333,11 +333,8 @@
 
 .xtr-candidates-row {
   display: flex;
-  flex-direction: row;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-  scroll-snap-type: x proximity;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .xtr-candidates-header {
@@ -360,10 +357,6 @@
 }
 
 .xtr-candidate-card {
-  flex: 0 0 240px;
-  max-height: 155px;
-  overflow-y: auto;
-  scroll-snap-align: start;
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid rgba(29, 155, 240, 0.24);
