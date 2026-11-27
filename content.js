@@ -9,11 +9,13 @@
     STANCE_OPTIONS,
     LENGTH_OPTIONS,
     POST_MODES,
+    RADAR_CHANNELS,
     isMostlyChinese,
     hasChinese,
     normalizeStance,
     normalizeLength,
-    normalizePostMode
+    normalizePostMode,
+    normalizeRadarChannel
   } = CORE;
 
   const SETTINGS = {
@@ -37,6 +39,7 @@
     lastStance: 'mix',
     lastLength: 'auto',
     lastPostMode: 'news_post',
+    lastRadarChannel: 'ai_tech',
     lastSelection: null, // { en, zh_back, style, timestamp }
     continueEnabled: false
   };
@@ -415,6 +418,7 @@
       if (saved.lastStance) SESSION_STATE.lastStance = normalizeStance(saved.lastStance);
       if (saved.lastLength) SESSION_STATE.lastLength = normalizeLength(saved.lastLength);
       if (saved.lastPostMode) SESSION_STATE.lastPostMode = normalizePostMode(saved.lastPostMode);
+      if (saved.lastRadarChannel) SESSION_STATE.lastRadarChannel = normalizeRadarChannel(saved.lastRadarChannel);
       if (saved.lastSelection && saved.lastSelection.en) {
         SESSION_STATE.lastSelection = saved.lastSelection;
         SESSION_STATE.continueEnabled = Boolean(saved.continueEnabled);
@@ -580,6 +584,9 @@
       panel.appendChild(takeawayDiv);
     }
 
+    const cardsRow = document.createElement('div');
+    cardsRow.className = 'xtr-candidates-row';
+
     candidates.forEach((c) => {
       const card = document.createElement('div');
       card.className = 'xtr-candidate-card';
@@ -639,8 +646,10 @@
         recordSelectedCandidate(c);
         onUse(c.en);
       });
-      panel.appendChild(card);
+      cardsRow.appendChild(card);
     });
+
+    panel.appendChild(cardsRow);
   }
 
   // --- Tweet Translation (EN -> ZH + Takeaway + Slang) ---
@@ -1321,13 +1330,32 @@
       const radarView = document.createElement('div');
       radarView.className = 'xtr-radar-view';
 
+      const channelsWrap = document.createElement('div');
+      channelsWrap.className = 'xtr-writer-modes';
+      const channelBtns = new Map();
+      RADAR_CHANNELS.forEach((ch) => {
+        const pill = document.createElement('button');
+        pill.type = 'button';
+        pill.className = 'xtr-mode-pill';
+        pill.textContent = ch.label;
+        pill.classList.toggle('is-active', SESSION_STATE.lastRadarChannel === ch.value);
+        pill.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          SESSION_STATE.lastRadarChannel = ch.value;
+          persistSessionState();
+        });
+        channelBtns.set(ch.value, pill);
+        channelsWrap.appendChild(pill);
+      });
+
       const radarControls = document.createElement('div');
       radarControls.className = 'xtr-writer-bottom';
 
       const focusInput = document.createElement('input');
       focusInput.type = 'text';
       focusInput.className = 'xtr-writer-link';
-      focusInput.placeholder = '可选筛选方向（如 OpenAI / Agent / Apple，留空抓全网 AI 大事）';
+      focusInput.placeholder = '可选筛选关键词（如 OpenAI / 电影 / 梗图，留空按频道抓）';
 
       const fetchRadarBtn = document.createElement('button');
       fetchRadarBtn.type = 'button';
@@ -1344,6 +1372,7 @@
       const radarList = document.createElement('div');
       radarList.className = 'xtr-radar-list';
 
+      radarView.appendChild(channelsWrap);
       radarView.appendChild(radarControls);
       radarView.appendChild(radarMeta);
       radarView.appendChild(radarList);
@@ -1403,6 +1432,9 @@
       sessionSyncListeners.add(() => {
         modeBtns.forEach((pill, val) => {
           pill.classList.toggle('is-active', SESSION_STATE.lastPostMode === val);
+        });
+        channelBtns.forEach((pill, val) => {
+          pill.classList.toggle('is-active', SESSION_STATE.lastRadarChannel === val);
         });
       });
 
@@ -1927,6 +1959,7 @@
           const data = await sendMessageAsync({
             type: 'FETCH_RADAR_TOPICS',
             focus: focusInput.value.trim(),
+            channel: SESSION_STATE.lastRadarChannel,
             force
           });
           renderRadarTopics(data);

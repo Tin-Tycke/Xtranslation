@@ -124,7 +124,7 @@ describe('lib/core.js', () => {
       });
       assert.match(msgs[0].content, /devil's advocate|blind spot/i);
       assert.match(msgs[0].content, /2–4 sentences/);
-      assert.match(msgs[0].content, /Anti-AI Authenticity Rules/);
+      assert.match(msgs[0].content, /Anti-AI & Native Slang Rules/);
       assert.match(msgs[0].content, /post_takeaway/);
       assert.match(msgs[1].content, /Previous Reply \/ Selected Candidate to Continue From/);
       assert.match(msgs[1].content, /Everyone says this until prod breaks at 3am/);

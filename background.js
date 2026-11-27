@@ -27,6 +27,7 @@ const {
   sanitizeMiddleDots,
   normalizeRegion,
   normalizePostMode,
+  normalizeRadarChannel,
   extractUrls,
   buildTweetTranslationMessages,
   buildComposeDirectMessages,
@@ -443,22 +444,24 @@ async function generatePostDraft({
 const RADAR_CACHE_TTL_MS = 15 * 60 * 1000;
 const radarCache = new Map();
 
-async function fetchRadarTopics({ focus = '', force = false } = {}) {
+async function fetchRadarTopics({ focus = '', channel = 'ai_tech', force = false } = {}) {
   const settings = await getSettings();
   const region = normalizeRegion(settings.targetRegion);
+  const effectiveChannel = normalizeRadarChannel(channel);
   const focusKey = (focus || '').trim().toLowerCase();
   const sp = settings.searchProvider && settings.searchProvider !== 'none'
     ? settings.searchProvider
     : settings.grokApiKey
       ? 'grok'
       : 'none';
-  const cacheKey = `${region}:${sp}:${focusKey}`;
+  const cacheKey = `${region}:${effectiveChannel}:${sp}:${focusKey}`;
   const cached = radarCache.get(cacheKey);
   if (!force && cached && Date.now() - cached.fetchedAt < RADAR_CACHE_TTL_MS) {
     return cached;
   }
 
   const { items, sourceStats } = await fetchAllRadarSources({
+    channel: effectiveChannel,
     searchProvider: settings.searchProvider,
     searchApiKey: settings.searchApiKey,
     searchModel: settings.searchModel,
@@ -475,7 +478,8 @@ async function fetchRadarTopics({ focus = '', force = false } = {}) {
   const messages = buildTopicCurationMessages(items, {
     customFocus: focus,
     glossary: settings.glossary,
-    region
+    region,
+    channel: effectiveChannel
   });
 
   const { content: raw } = await callLLM(messages, { temperature: 0.35, jsonMode: true });
@@ -675,6 +679,7 @@ async function handleMessage(message) {
   if (message.type === 'FETCH_RADAR_TOPICS') {
     return fetchRadarTopics({
       focus: message.focus || '',
+      channel: message.channel || 'ai_tech',
       force: Boolean(message.force)
     });
   }

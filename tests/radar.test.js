@@ -133,6 +133,45 @@ describe('lib/radar.js', () => {
       assert.equal(eItems.length, 1);
       assert.equal(eItems[0].source, 'Exa Search');
     });
+
+    it('fetches memes_fun channel from meme/entertainment subreddits without AI-only filtering', async () => {
+      const requestedUrls = [];
+      globalThis.fetch = async (url) => {
+        requestedUrls.push(url);
+        if (url.includes('reddit.com/r/memes/')) {
+          return {
+            ok: true,
+            json: async () => ({
+              data: {
+                children: [
+                  {
+                    data: {
+                      id: 'm1',
+                      title: 'Me trying to fix one bug on Friday afternoon',
+                      permalink: '/r/memes/comments/m1',
+                      url: 'https://i.redd.it/friday-bug.jpg',
+                      score: 5400,
+                      num_comments: 210,
+                      created_utc: 1700000000
+                    }
+                  }
+                ]
+              }
+            })
+          };
+        }
+        return { ok: false, text: async () => '' };
+      };
+
+      const { items, sourceStats } = await radar.fetchAllRadarSources({ channel: 'memes_fun' });
+      assert.ok(requestedUrls.some((u) => u.includes('/r/memes/')));
+      assert.equal(items.length, 1);
+      assert.match(items[0].snippet, /\[含原图\/梗图\]/);
+      assert.ok(sourceStats.some((s) => s.source === '梗图/娱乐 Reddit' && s.count === 1));
+
+      const curation = radar.buildTopicCurationMessages(items, { channel: 'memes_fun', region: 'zh' });
+      assert.match(curation[0].content, /热门梗图 \/ 娱乐八卦/);
+    });
   });
 
   describe('isTechAiRelevant & dedupeAndRankItems', () => {
