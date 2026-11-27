@@ -44,6 +44,23 @@ describe('lib/ops.js', () => {
     assert.equal(pace.hourlyCount, 20);
     assert.match(pace.warning, /暂停 15 分钟/);
   });
+
+  it('tracks API call count and token usage (both API usage field and fallback estimation)', () => {
+    const now = Date.now();
+    let stats = ops.createEmptyOpsStats(now);
+    stats = ops.recordTokenUsage(stats, { prompt_tokens: 420, completion_tokens: 180, total_tokens: 600 }, {}, now);
+    assert.equal(stats.apiCallsToday, 1);
+    assert.equal(stats.promptTokensToday, 420);
+    assert.equal(stats.completionTokensToday, 180);
+    assert.equal(stats.totalTokensToday, 600);
+
+    // Fallback estimation when provider omits usage
+    stats = ops.recordTokenUsage(stats, null, { fallbackInputChars: 300, fallbackOutputChars: 150 }, now + 1000);
+    assert.equal(stats.apiCallsToday, 2);
+    assert.equal(stats.totalTokensToday, 750);
+    assert.equal(ops.formatTokenCount(750), '750');
+    assert.equal(ops.formatTokenCount(12450), '12.4k');
+  });
 });
 
 describe('Quote Remix & Ops background handlers', () => {
@@ -100,6 +117,7 @@ describe('Quote Remix & Ops background handlers', () => {
     globalThis.fetch = async () => ({
       ok: true,
       json: async () => ({
+        usage: { prompt_tokens: 500, completion_tokens: 120, total_tokens: 620 },
         choices: [
           {
             message: {
@@ -127,6 +145,8 @@ describe('Quote Remix & Ops background handlers', () => {
     const stats = await bg.handleMessage({ type: 'GET_OPS_STATS' });
     assert.equal(stats.quotesToday, 1);
     assert.equal(stats.repliesToday, 1);
+    assert.equal(stats.apiCallsToday, 1);
+    assert.equal(stats.totalTokensToday, 620);
     assert.equal(stats.pace.level, 'safe');
 
     const reset = await bg.handleMessage({ type: 'RESET_OPS_STATS' });

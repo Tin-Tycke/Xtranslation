@@ -763,11 +763,20 @@
   const opsBannerSyncListeners = new Set();
   let latestOpsStats = null;
 
+  function formatCompactTokens(n) {
+    const num = Number(n) || 0;
+    if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
+    return String(num);
+  }
+
   function formatOpsBannerText(stats) {
-    if (!stats) return '📊 今日 评 0  引 0  原创 0';
+    if (!stats) return '📊 今日 评 0  引 0  原创 0  |  调用 0 次  Token 0';
     const pace = stats.pace || { level: 'safe', hourlyCount: 0, label: '节奏健康' };
     const icon = pace.level === 'cooldown' ? '🔴' : pace.level === 'caution' ? '🟡' : '🟢';
-    return `📊 今日 评 ${stats.repliesToday || 0}  引 ${stats.quotesToday || 0}  原创 ${stats.postsToday || 0}  |  近1小时 ${pace.hourlyCount} 次  ${icon} ${pace.label}`;
+    const calls = stats.apiCallsToday || 0;
+    const tok = formatCompactTokens(stats.totalTokensToday || 0);
+    return `📊 评 ${stats.repliesToday || 0}  引 ${stats.quotesToday || 0}  原创 ${stats.postsToday || 0}  |  调用 ${calls} 次  Token ${tok}  |  ${icon} ${pace.label}`;
   }
 
   function broadcastOpsStats(stats) {

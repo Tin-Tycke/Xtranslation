@@ -65,6 +65,7 @@ const els = {
   opsReplies: document.getElementById('opsReplies'),
   opsQuotes: document.getElementById('opsQuotes'),
   opsPosts: document.getElementById('opsPosts'),
+  opsUsage: document.getElementById('opsUsage'),
   opsHourly: document.getElementById('opsHourly'),
   opsPaceBadge: document.getElementById('opsPaceBadge'),
   opsResetBtn: document.getElementById('opsResetBtn')
@@ -243,11 +244,25 @@ els.clearCacheBtn.addEventListener('click', () => {
   });
 });
 
+function formatCompactTokens(n) {
+  const num = Number(n) || 0;
+  if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M`;
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
+  return String(num);
+}
+
 function renderOpsStats(stats) {
   if (!stats) return;
   els.opsReplies.textContent = String(stats.repliesToday || 0);
   els.opsQuotes.textContent = String(stats.quotesToday || 0);
   els.opsPosts.textContent = String(stats.postsToday || 0);
+  const calls = stats.apiCallsToday || 0;
+  const totalTok = formatCompactTokens(stats.totalTokensToday || 0);
+  const inTok = formatCompactTokens(stats.promptTokensToday || 0);
+  const outTok = formatCompactTokens(stats.completionTokensToday || 0);
+  if (els.opsUsage) {
+    els.opsUsage.textContent = `今日调用：${calls} 次  Token：${totalTok}（入 ${inTok} / 出 ${outTok}）`;
+  }
   const pace = stats.pace || { level: 'safe', hourlyCount: 0, label: '节奏健康' };
   els.opsHourly.textContent = `近1小时互动：${pace.hourlyCount} 次`;
   const icon = pace.level === 'cooldown' ? '🔴' : pace.level === 'caution' ? '🟡' : '🟢';

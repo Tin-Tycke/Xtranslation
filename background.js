@@ -264,6 +264,24 @@ async function callLLM(messages, { temperature, jsonMode = false, timeoutMs = DE
   if (!content) {
     throw new Error(`API 返回内容为空 [${url}]`);
   }
+
+  // Record token usage & API call count locally (fire-and-forget)
+  try {
+    const inputChars = (body.messages || []).reduce((sum, m) => {
+      if (typeof m?.content === 'string') return sum + m.content.length;
+      if (Array.isArray(m?.content)) {
+        return sum + m.content.reduce((s, p) => s + (typeof p?.text === 'string' ? p.text.length : 0), 0);
+      }
+      return sum;
+    }, 0);
+    await logTokenUsage(data?.usage || null, {
+      fallbackInputChars: inputChars,
+      fallbackOutputChars: content.length
+    });
+  } catch {
+    // never fail LLM response due to stats persistence
+  }
+
   return { content: content.trim(), visionFallback };
 }
 
@@ -648,6 +666,13 @@ async function logOpsEvent({ kind = 'reply', author = '' } = {}) {
     ...updated,
     pace: OPS.evaluatePaceSafety(updated)
   };
+}
+
+async function logTokenUsage(usage, fallbacks = {}) {
+  const res = await chrome.storage.local.get(OPS_STORAGE_KEY).catch(() => ({}));
+  const updated = OPS.recordTokenUsage(res?.[OPS_STORAGE_KEY], usage, fallbacks);
+  await chrome.storage.local.set({ [OPS_STORAGE_KEY]: updated }).catch(() => {});
+  return updated;
 }
 
 async function resetOpsStats() {
