@@ -1409,9 +1409,9 @@
     });
 
     controls.appendChild(btn);
+    controls.appendChild(draftIdeaBtn);
     controls.appendChild(quickReplyBtn);
     controls.appendChild(quoteRemixBtn);
-    controls.appendChild(draftIdeaBtn);
     container.appendChild(controls);
     container.appendChild(resultBox);
     container.appendChild(quickReplyBox);
